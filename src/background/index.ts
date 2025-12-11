@@ -9,6 +9,7 @@ import type {
   SummarizePayload,
   ExplainPayload,
   SearchEnhancePayload,
+  CaptureScreenshotPayload,
   CancelRequestPayload,
   SearchResult,
   StoredSettings,
@@ -17,6 +18,7 @@ import type {
 import { callLLMWithMessages, searchWeb, extractKeywords } from '../lib/api';
 import { loadSettings } from '../lib/storage';
 import * as requestManager from '../lib/request-manager';
+import { captureAndCropScreenshot } from '../lib/screenshot';
 
 console.log('KnowledgeLens background service worker loaded');
 
@@ -397,6 +399,39 @@ function handleCancelRequest(
   } as ExtensionResponse);
 }
 
+/**
+ * Handle screenshot capture request
+ * Uses chrome.tabs.captureVisibleTab and offscreen document for cropping
+ * Requirements: 5.2, 5.3
+ */
+async function handleCaptureScreenshot(
+  payload: CaptureScreenshotPayload,
+  sendResponse: (response: ExtensionResponse) => void
+): Promise<void> {
+  const request = requestManager.create();
+
+  try {
+    const croppedImageBase64 = await captureAndCropScreenshot(
+      payload.tabId,
+      payload.region
+    );
+
+    sendResponse({
+      success: true,
+      data: { imageBase64: croppedImageBase64 },
+      requestId: request.id,
+    });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to capture screenshot',
+      requestId: request.id,
+    });
+  } finally {
+    requestManager.complete(request.id);
+  }
+}
+
 // ============================================================================
 // Message Router
 // ============================================================================
@@ -426,9 +461,12 @@ chrome.runtime.onMessage.addListener(
         return false; // Sync response
 
       case 'capture_screenshot':
+        handleCaptureScreenshot(message.payload, sendResponse);
+        return true; // Keep channel open for async response
+
       case 'extract_screenshot':
       case 'generate_note_card':
-        // These will be implemented in task 8 (screenshot capture pipeline)
+        // These will be implemented in task 14 (screenshot-to-notes features)
         sendResponse({
           success: false,
           error: 'Feature not yet implemented',

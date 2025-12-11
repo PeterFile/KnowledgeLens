@@ -305,6 +305,34 @@ export function extractContextWindow(
 }
 
 /**
+ * Find a suitable container element with enough context.
+ * Walks up the DOM tree to find an element with substantial text content.
+ */
+function findContextContainer(element: Element | null, minTextLength: number = 200): Element | null {
+  if (!element) return null;
+
+  let current: Element | null = element;
+  const body = document.body;
+
+  while (current && current !== body) {
+    const textLength = (current.textContent || '').trim().length;
+    // Stop if we find an element with enough text, or if it's a semantic container
+    if (textLength >= minTextLength) {
+      return current;
+    }
+    // Also stop at semantic containers like article, section, main
+    const tagName = current.tagName.toLowerCase();
+    if (['article', 'section', 'main', 'div'].includes(tagName) && textLength > 50) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+
+  // Fallback to body if nothing suitable found
+  return body;
+}
+
+/**
  * Get selection context from a DOM Selection object.
  * Extracts the selected text and surrounding context from the page.
  */
@@ -322,11 +350,23 @@ export function getSelectionWithContext(selection: Selection | null): SelectionC
   const container = range.commonAncestorContainer;
 
   // Get the text content of the container element
-  const containerElement = container.nodeType === Node.TEXT_NODE
+  const initialElement = container.nodeType === Node.TEXT_NODE
     ? container.parentElement
     : container as Element;
 
-  if (!containerElement) {
+  if (!initialElement) {
+    return {
+      selectedText,
+      contextBefore: '',
+      contextAfter: '',
+      fullContext: selectedText,
+    };
+  }
+
+  // Find a container with enough context (at least 200 chars or 2x context window)
+  const contextContainer = findContextContainer(initialElement, CONTEXT_WINDOW_SIZE * 2);
+  
+  if (!contextContainer) {
     return {
       selectedText,
       contextBefore: '',
@@ -336,8 +376,8 @@ export function getSelectionWithContext(selection: Selection | null): SelectionC
   }
 
   // Get full text and find selection position
-  const fullText = containerElement.textContent || '';
-  const selectionStart = findSelectionStart(containerElement, range);
+  const fullText = contextContainer.textContent || '';
+  const selectionStart = findSelectionStart(contextContainer, range);
 
   return extractContextWindow(selectedText, fullText, selectionStart);
 }

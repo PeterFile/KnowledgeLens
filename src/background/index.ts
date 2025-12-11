@@ -205,7 +205,8 @@ ${safeContent}`,
  */
 async function handleExplain(
   payload: ExplainPayload,
-  sendResponse: (response: ExtensionResponse) => void
+  sendResponse: (response: ExtensionResponse) => void,
+  tabId?: number
 ): Promise<void> {
   const settings = await getSettings();
   if (!settings?.llmConfig?.apiKey) {
@@ -228,7 +229,7 @@ async function handleExplain(
   sendStreamingMessage({
     type: 'streaming_start',
     requestId: request.id,
-  });
+  }, tabId);
 
   // Structured messages prevent prompt injection
   const messages: ChatMessage[] = [
@@ -257,7 +258,7 @@ ${payload.context}`,
           type: 'streaming_chunk',
           requestId: request.id,
           chunk,
-        });
+        }, tabId);
       },
       request.controller.signal
     );
@@ -266,7 +267,7 @@ ${payload.context}`,
       type: 'streaming_end',
       requestId: request.id,
       content: fullContent,
-    });
+    }, tabId);
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       return;
@@ -276,7 +277,7 @@ ${payload.context}`,
       type: 'streaming_error',
       requestId: request.id,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
-    });
+    }, tabId);
   } finally {
     requestManager.complete(request.id);
   }
@@ -304,7 +305,8 @@ function formatSearchResults(results: SearchResult[]): string {
  */
 async function handleSearchEnhance(
   payload: SearchEnhancePayload,
-  sendResponse: (response: ExtensionResponse) => void
+  sendResponse: (response: ExtensionResponse) => void,
+  tabId?: number
 ): Promise<void> {
   const settings = await getSettings();
   if (!settings?.llmConfig?.apiKey) {
@@ -327,7 +329,7 @@ async function handleSearchEnhance(
   sendStreamingMessage({
     type: 'streaming_start',
     requestId: request.id,
-  });
+  }, tabId);
 
   try {
     // Use LLM to generate semantic search query (Agentic approach)
@@ -382,7 +384,7 @@ ${payload.context}${formatSearchResults(searchResults)}`,
           type: 'streaming_chunk',
           requestId: request.id,
           chunk,
-        });
+        }, tabId);
       },
       request.controller.signal
     );
@@ -391,7 +393,7 @@ ${payload.context}${formatSearchResults(searchResults)}`,
       type: 'streaming_end',
       requestId: request.id,
       content: fullContent,
-    });
+    }, tabId);
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       return;
@@ -401,7 +403,7 @@ ${payload.context}${formatSearchResults(searchResults)}`,
       type: 'streaming_error',
       requestId: request.id,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
-    });
+    }, tabId);
   } finally {
     requestManager.complete(request.id);
   }
@@ -603,18 +605,20 @@ async function handleGenerateNoteCard(
  * Requirements: 1.1, 2.2, 3.2, 4.3
  */
 chrome.runtime.onMessage.addListener(
-  (message: ExtensionMessage, _sender, sendResponse) => {
+  (message: ExtensionMessage, sender, sendResponse) => {
+    const tabId = sender.tab?.id;
+
     switch (message.action) {
       case 'summarize_page':
         handleSummarize(message.payload, sendResponse);
         return true; // Keep channel open for async response
 
       case 'explain_text':
-        handleExplain(message.payload, sendResponse);
+        handleExplain(message.payload, sendResponse, tabId);
         return true;
 
       case 'search_enhance':
-        handleSearchEnhance(message.payload, sendResponse);
+        handleSearchEnhance(message.payload, sendResponse, tabId);
         return true;
 
       case 'cancel_request':

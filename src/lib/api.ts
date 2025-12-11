@@ -16,39 +16,28 @@ const API_ENDPOINTS = {
   google: 'https://www.googleapis.com/customsearch/v1',
 } as const;
 
-// Default model context limits (updated December 2025)
-// Source: Official API documentation from OpenAI, Anthropic, and Google
+
 const DEFAULT_MAX_TOKENS: Record<string, number> = {
-  // OpenAI reasoning models (GPT-5 series)
-  'gpt-5': 200000,
-  'gpt-5-mini': 128000,
-  'gpt-5-nano': 128000,
-  // OpenAI GPT-4o series
+  // --- OpenAI Models (Generation 5) ---
+  'gpt-5.1': 400000,  
+  'gpt-5-mini': 400000, 
+  'gpt-5-nano': 400000,
+  'gpt-4.1': 1000000, 
+  // Legacy (Keep for backward compatibility)
   'gpt-4o': 128000,
-  'gpt-4o-mini': 128000,
-  // Anthropic Claude 4.5 series (latest - best for agents and coding)
-  'claude-sonnet-4-5': 200000,
-  'claude-sonnet-4-5-20250929': 200000,
-  // Anthropic Claude 4 series
-  'claude-sonnet-4-0': 200000,
-  'claude-sonnet-4-20250514': 200000,
-  'claude-opus-4-0': 200000,
-  'claude-opus-4-20250514': 200000,
-  'claude-opus-4-1-20250805': 200000,
-  // Anthropic Claude Haiku 4.5 (hybrid model)
-  'claude-haiku-4-5': 200000,
-  'claude-haiku-4-5-20251001': 200000,
-  // Anthropic Claude 3.7/3.5 series
-  'claude-3-7-sonnet-latest': 200000,
-  'claude-3-7-sonnet-20250219': 200000,
-  'claude-3-5-haiku-latest': 200000,
-  'claude-3-5-haiku-20241022': 200000,
-  // Google Gemini 2.5 series (latest)
-  'gemini-2.5-flash': 1048576,
-  'gemini-2.5-flash-lite': 1048576,
-  // Google Gemini 2.0 series
-  'gemini-2.0-flash': 1048576,
-  'gemini-2.0-flash-preview-image-generation': 32768,
+  
+  // --- Anthropic Claude Models (Generation 4.5) ---
+  'claude-sonnet-4-5-20250929': 500000,
+  'claude-haiku-4-5-20251001': 500000, 
+  'claude-opus-4-5-20251101': 500000,
+  // Legacy (Deprecated but may still work briefly)
+  'claude-3-7-sonnet-latest': 200000, 
+
+  // --- Google Gemini Models (Generation 3.0 & 2.5) ---
+  'gemini-3.0-pro': 2000000,
+  'gemini-2.5-pro': 2000000,
+  'gemini-2.5-flash': 1000000,
+  'gemini-2.5-flash-lite': 1000000,
 };
 
 /**

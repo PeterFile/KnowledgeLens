@@ -235,14 +235,12 @@ export function truncateToTokenLimit(text: string, options: TruncationOptions): 
   // For end, we need to work backwards - take last portion
   const words = text.split(/\s+/);
   let endText = '';
-  let endTokens = 0;
   
   for (let i = words.length - 1; i >= 0; i--) {
     const candidate = words.slice(i).join(' ');
     const candidateTokens = countTokens(candidate, encoding);
     if (candidateTokens <= halfTokens) {
       endText = candidate;
-      endTokens = candidateTokens;
     } else {
       break;
     }

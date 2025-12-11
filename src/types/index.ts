@@ -104,6 +104,15 @@ export type ExtensionResponse =
   | { success: true; data: unknown; requestId: string }
   | { success: false; error: string; requestId: string };
 
+// Streaming message sent from background to popup/content script
+export interface StreamingMessage {
+  type: 'streaming_start' | 'streaming_chunk' | 'streaming_end' | 'streaming_error';
+  requestId: string;
+  chunk?: string;
+  content?: string;
+  error?: string;
+}
+
 // Selection Data
 export interface SelectionData {
   text: string;

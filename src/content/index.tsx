@@ -248,8 +248,8 @@ function cleanup(): void {
 // Start
 init();
 
-// Cleanup on page unload
-window.addEventListener('unload', cleanup);
+// Cleanup on page unload (use pagehide instead of unload to avoid Permissions Policy violations)
+window.addEventListener('pagehide', cleanup);
 
 // Export functions for external use (e.g., from popup)
 export { showScreenshotOverlay, hideScreenshotOverlay };

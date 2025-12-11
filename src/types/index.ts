@@ -128,3 +128,9 @@ export interface AsyncState<T> {
   error?: string;
   requestId?: string;
 }
+
+// Stored Settings for chrome.storage.local
+export interface StoredSettings {
+  llmConfig?: LLMConfig;
+  searchConfig?: SearchConfig;
+}

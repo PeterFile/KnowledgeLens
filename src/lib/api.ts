@@ -5,6 +5,7 @@ import type {
   SearchConfig,
   SearchResult,
   OnTokenCallback,
+  ChatMessage,
 } from '../types';
 
 // API endpoint URLs
@@ -52,6 +53,7 @@ export function getMaxContextTokens(config: LLMConfig): number {
 
 /**
  * Non-streaming LLM call - waits for complete response
+ * @deprecated Use callLLMWithMessages for better security against prompt injection
  */
 export async function callLLM(
   prompt: string,
@@ -73,9 +75,31 @@ export async function callLLM(
   return { content, usage };
 }
 
+/**
+ * Streaming LLM call with structured messages (recommended)
+ * Separates system prompt from user content to prevent prompt injection attacks
+ */
+export async function callLLMWithMessages(
+  messages: ChatMessage[],
+  config: LLMConfig,
+  onToken: OnTokenCallback,
+  signal?: AbortSignal
+): Promise<LLMResponse> {
+  switch (config.provider) {
+    case 'openai':
+      return callOpenAIWithMessages(messages, config, onToken, signal);
+    case 'anthropic':
+      return callAnthropicWithMessages(messages, config, onToken, signal);
+    case 'gemini':
+      return callGeminiWithMessages(messages, config, onToken, signal);
+    default:
+      throw new Error(`Unsupported provider: ${config.provider}`);
+  }
+}
 
 /**
  * Streaming LLM call - invokes callback for each token
+ * @deprecated Use callLLMWithMessages for better security against prompt injection
  */
 export async function callLLMStreaming(
   prompt: string,
@@ -83,23 +107,16 @@ export async function callLLMStreaming(
   onToken: OnTokenCallback,
   signal?: AbortSignal
 ): Promise<LLMResponse> {
-  switch (config.provider) {
-    case 'openai':
-      return callOpenAIStreaming(prompt, config, onToken, signal);
-    case 'anthropic':
-      return callAnthropicStreaming(prompt, config, onToken, signal);
-    case 'gemini':
-      return callGeminiStreaming(prompt, config, onToken, signal);
-    default:
-      throw new Error(`Unsupported provider: ${config.provider}`);
-  }
+  // Convert single prompt to messages format for backward compatibility
+  const messages: ChatMessage[] = [{ role: 'user', content: prompt }];
+  return callLLMWithMessages(messages, config, onToken, signal);
 }
 
 /**
- * OpenAI streaming implementation
+ * OpenAI streaming with structured messages
  */
-async function callOpenAIStreaming(
-  prompt: string,
+async function callOpenAIWithMessages(
+  messages: ChatMessage[],
   config: LLMConfig,
   onToken: OnTokenCallback,
   signal?: AbortSignal
@@ -112,7 +129,7 @@ async function callOpenAIStreaming(
     },
     body: JSON.stringify({
       model: config.model,
-      messages: [{ role: 'user', content: prompt }],
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
       stream: true,
     }),
     signal,
@@ -127,14 +144,19 @@ async function callOpenAIStreaming(
 }
 
 /**
- * Anthropic streaming implementation
+ * Anthropic streaming with structured messages
+ * Note: Anthropic uses 'system' parameter separately from messages array
  */
-async function callAnthropicStreaming(
-  prompt: string,
+async function callAnthropicWithMessages(
+  messages: ChatMessage[],
   config: LLMConfig,
   onToken: OnTokenCallback,
   signal?: AbortSignal
 ): Promise<LLMResponse> {
+  // Extract system message (Anthropic handles it separately)
+  const systemMessage = messages.find((m) => m.role === 'system');
+  const nonSystemMessages = messages.filter((m) => m.role !== 'system');
+
   const response = await fetch(API_ENDPOINTS.anthropic, {
     method: 'POST',
     headers: {
@@ -145,7 +167,8 @@ async function callAnthropicStreaming(
     body: JSON.stringify({
       model: config.model,
       max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }],
+      ...(systemMessage && { system: systemMessage.content }),
+      messages: nonSystemMessages.map((m) => ({ role: m.role, content: m.content })),
       stream: true,
     }),
     signal,
@@ -160,15 +183,26 @@ async function callAnthropicStreaming(
 }
 
 /**
- * Gemini streaming implementation
+ * Gemini streaming with structured messages
+ * Note: Gemini REST API uses system_instruction (snake_case) for system prompts
  */
-async function callGeminiStreaming(
-  prompt: string,
+async function callGeminiWithMessages(
+  messages: ChatMessage[],
   config: LLMConfig,
   onToken: OnTokenCallback,
   signal?: AbortSignal
 ): Promise<LLMResponse> {
   const url = `${API_ENDPOINTS.gemini}/${config.model}:streamGenerateContent?key=${config.apiKey}&alt=sse`;
+
+  // Extract system message (Gemini handles it as system_instruction)
+  const systemMessage = messages.find((m) => m.role === 'system');
+  const nonSystemMessages = messages.filter((m) => m.role !== 'system');
+
+  // Convert messages to Gemini format
+  const contents = nonSystemMessages.map((m) => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
 
   const response = await fetch(url, {
     method: 'POST',
@@ -176,7 +210,10 @@ async function callGeminiStreaming(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
+      ...(systemMessage && {
+        system_instruction: { parts: [{ text: systemMessage.content }] },
+      }),
+      contents,
     }),
     signal,
   });

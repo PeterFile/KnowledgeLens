@@ -35,6 +35,12 @@ export interface SearchResult {
 // Streaming callback type
 export type OnTokenCallback = (chunk: string) => void;
 
+// Chat message for structured LLM requests (prevents prompt injection)
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
 // Extension Message Types (discriminated union)
 export type ExtensionMessage =
   | { action: 'summarize_page'; payload: SummarizePayload }

@@ -128,18 +128,41 @@ const SHADOW_STYLES = `
 .duration-300 { transition-duration: 300ms; }
 
 .hover\\:bg-gray-100:hover { background-color: #f3f4f6; }
+.hover\\:bg-gray-200:hover { background-color: #e5e7eb; }
 .hover\\:bg-blue-600:hover { background-color: #2563eb; }
 .hover\\:bg-blue-700:hover { background-color: #1d4ed8; }
 .hover\\:text-gray-700:hover { color: #374151; }
+
+.bg-transparent { background-color: transparent; }
+.bg-red-50 { background-color: #fef2f2; }
+.border-red-200 { border-color: #fecaca; }
+.text-red-700 { color: #b91c1c; }
+
+.flex-1 { flex: 1 1 0%; }
+.justify-start { justify-content: flex-start; }
+.text-center { text-align: center; }
+
+.mb-1 { margin-bottom: 0.25rem; }
+.mb-3 { margin-bottom: 0.75rem; }
+.mt-1 { margin-top: 0.25rem; }
+
+.disabled\\:opacity-50:disabled { opacity: 0.5; }
+.disabled\\:cursor-not-allowed:disabled { cursor: not-allowed; }
 
 .z-\\[999999\\] { z-index: 999999; }
 .z-\\[999998\\] { z-index: 999998; }
 
 .top-0 { top: 0; }
+.top-4 { top: 1rem; }
 .right-0 { right: 0; }
 .bottom-0 { bottom: 0; }
 .left-0 { left: 0; }
+.left-1\\/2 { left: 50%; }
 .inset-0 { inset: 0; }
+
+.-translate-x-1\\/2 { transform: translateX(-50%); }
+
+.cursor-crosshair { cursor: crosshair; }
 
 .whitespace-pre-wrap { white-space: pre-wrap; }
 .break-words { overflow-wrap: break-word; }

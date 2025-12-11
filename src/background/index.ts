@@ -17,7 +17,8 @@ import type {
   StoredSettings,
   ChatMessage,
 } from '../types';
-import { callLLMWithMessages, callLLMWithImage, searchWeb, extractKeywords } from '../lib/api';
+import { callLLMWithMessages, callLLMWithImage, searchWeb, generateSearchQuery, getMaxContextTokens } from '../lib/api';
+import { truncateToTokens, getEncodingForModel } from '../lib/tokenizer';
 import { loadSettings } from '../lib/storage';
 import * as requestManager from '../lib/request-manager';
 import { captureAndCropScreenshot } from '../lib/screenshot';
@@ -141,6 +142,11 @@ async function handleSummarize(
     requestId: request.id,
   });
 
+  // Truncate content to fit within context window (reserve 2000 tokens for output)
+  const encoding = getEncodingForModel(settings.llmConfig.provider, settings.llmConfig.model);
+  const maxContentTokens = getMaxContextTokens(settings.llmConfig) - 2000;
+  const safeContent = truncateToTokens(payload.content, maxContentTokens, encoding);
+
   // Structured messages prevent prompt injection by separating roles
   const messages: ChatMessage[] = [
     { role: 'system', content: SYSTEM_PROMPTS.summarize },
@@ -151,7 +157,7 @@ async function handleSummarize(
 Page URL: ${payload.pageUrl}
 
 Content:
-${payload.content}`,
+${safeContent}`,
     },
   ];
 
@@ -324,15 +330,20 @@ async function handleSearchEnhance(
   });
 
   try {
-    // Extract keywords and search (Requirement 4.1, 4.2)
+    // Use LLM to generate semantic search query (Agentic approach)
     let searchResults: SearchResult[] = [];
-    const keywords = extractKeywords(payload.text);
 
-    if (settings.searchConfig?.apiKey && keywords.length > 0) {
+    if (settings.searchConfig?.apiKey) {
       try {
-        const query = keywords.join(' ');
+        // Generate search query using LLM for better intent understanding
+        const searchQuery = await generateSearchQuery(
+          payload.text,
+          settings.llmConfig,
+          request.controller.signal
+        );
+
         searchResults = await searchWeb(
-          query,
+          searchQuery,
           settings.searchConfig,
           request.controller.signal
         );

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
-import { extractKeywords } from '../../src/lib/api';
+import { extractKeywords, buildSearchEnhancedPrompt } from '../../src/lib/api';
+import type { SearchResult } from '../../src/types';
 
 /**
  * **Feature: knowledge-lens, Property 5: Keyword extraction produces valid substrings**
@@ -155,5 +156,91 @@ describe('Property 5: Keyword extraction produces valid substrings', () => {
     const keywords = extractKeywords(text);
 
     expect(keywords.length).toBeLessThanOrEqual(5);
+  });
+});
+
+
+/**
+ * **Feature: knowledge-lens, Property 6: Search results integration**
+ * **Validates: Requirements 4.3**
+ *
+ * For any set of search results and selected text, the combined prompt sent to LLM
+ * SHALL contain both the original selected text and all search result snippets.
+ */
+describe('Property 6: Search results integration', () => {
+  // Arbitrary for generating non-empty strings (selected text)
+  const selectedTextArb = fc.string({ minLength: 1, maxLength: 500 });
+
+  // Arbitrary for generating a single search result
+  const searchResultArb: fc.Arbitrary<SearchResult> = fc.record({
+    title: fc.string({ minLength: 1, maxLength: 100 }),
+    snippet: fc.string({ minLength: 1, maxLength: 300 }),
+    url: fc.webUrl(),
+  });
+
+  // Arbitrary for generating an array of search results (1-5 results)
+  const searchResultsArb = fc.array(searchResultArb, { minLength: 1, maxLength: 5 });
+
+  it('combined prompt contains the original selected text', () => {
+    fc.assert(
+      fc.property(selectedTextArb, searchResultsArb, (selectedText, searchResults) => {
+        const prompt = buildSearchEnhancedPrompt(selectedText, searchResults);
+
+        return prompt.includes(selectedText);
+      }),
+      { numRuns: 100 }
+    );
+  });
+
+  it('combined prompt contains all search result snippets', () => {
+    fc.assert(
+      fc.property(selectedTextArb, searchResultsArb, (selectedText, searchResults) => {
+        const prompt = buildSearchEnhancedPrompt(selectedText, searchResults);
+
+        return searchResults.every((result) => prompt.includes(result.snippet));
+      }),
+      { numRuns: 100 }
+    );
+  });
+
+  it('combined prompt contains all search result titles', () => {
+    fc.assert(
+      fc.property(selectedTextArb, searchResultsArb, (selectedText, searchResults) => {
+        const prompt = buildSearchEnhancedPrompt(selectedText, searchResults);
+
+        return searchResults.every((result) => prompt.includes(result.title));
+      }),
+      { numRuns: 100 }
+    );
+  });
+
+  it('combined prompt contains all search result URLs', () => {
+    fc.assert(
+      fc.property(selectedTextArb, searchResultsArb, (selectedText, searchResults) => {
+        const prompt = buildSearchEnhancedPrompt(selectedText, searchResults);
+
+        return searchResults.every((result) => prompt.includes(result.url));
+      }),
+      { numRuns: 100 }
+    );
+  });
+
+  it('handles empty search results array', () => {
+    const selectedText = 'Some selected text';
+    const prompt = buildSearchEnhancedPrompt(selectedText, []);
+
+    expect(prompt).toContain(selectedText);
+  });
+
+  it('search results are numbered in the prompt', () => {
+    fc.assert(
+      fc.property(selectedTextArb, searchResultsArb, (selectedText, searchResults) => {
+        const prompt = buildSearchEnhancedPrompt(selectedText, searchResults);
+
+        // Each result should be numbered [1], [2], etc.
+        return searchResults.every((_, index) => prompt.includes(`[${index + 1}]`));
+      }),
+      { numRuns: 100 }
+    );
   });
 });

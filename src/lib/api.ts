@@ -656,6 +656,28 @@ function segmentChinese(text: string): string[] {
 }
 
 /**
+ * Build a search-enhanced prompt combining selected text with search results
+ * The combined prompt includes the original text and all search result snippets
+ */
+export function buildSearchEnhancedPrompt(
+  selectedText: string,
+  searchResults: SearchResult[]
+): string {
+  const searchContext = searchResults
+    .map((result, index) => 
+      `[${index + 1}] ${result.title}\n${result.snippet}\nSource: ${result.url}`
+    )
+    .join('\n\n');
+
+  return `Selected text: ${selectedText}
+
+Web search results:
+${searchContext}
+
+Please provide an explanation of the selected text, incorporating relevant information from the search results. Include citations to the sources where appropriate.`;
+}
+
+/**
  * Extract keywords from text for search queries
  * Supports both English and Chinese text
  */

@@ -11,6 +11,33 @@ export interface NoteCardData {
   sourceUrl: string;
 }
 
+/**
+ * Validate that note card data contains all required metadata fields
+ * Requirements: 7.1, 7.2
+ * 
+ * Returns an object indicating which metadata fields are present
+ */
+export function validateNoteCardMetadata(data: NoteCardData): {
+  hasTitle: boolean;
+  hasFavicon: boolean;
+  hasSourceUrl: boolean;
+  hasScreenshot: boolean;
+  allRequiredPresent: boolean;
+} {
+  const hasTitle = typeof data.title === 'string' && data.title.length > 0;
+  const hasFavicon = typeof data.favicon === 'string' && data.favicon.length > 0;
+  const hasSourceUrl = typeof data.sourceUrl === 'string' && data.sourceUrl.length > 0;
+  const hasScreenshot = typeof data.screenshot === 'string' && data.screenshot.length > 0;
+  
+  return {
+    hasTitle,
+    hasFavicon,
+    hasSourceUrl,
+    hasScreenshot,
+    allRequiredPresent: hasTitle && hasSourceUrl && hasScreenshot,
+  };
+}
+
 export interface NoteCard {
   imageDataUrl: string;
   width: number;

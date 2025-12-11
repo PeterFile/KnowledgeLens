@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
-import { cleanHtml } from '../../src/lib/extractor';
+import { cleanHtml, extractContextWindow, CONTEXT_WINDOW_SIZE } from '../../src/lib/extractor';
 
 /**
  * **Feature: knowledge-lens, Property 1: Content extraction removes unwanted elements**
@@ -186,5 +186,144 @@ describe('Property 13: HTML cleaning preserves visible text', () => {
   it('handles empty input gracefully', () => {
     expect(cleanHtml('')).toBe('');
     expect(cleanHtml('<div></div>')).toBe('');
+  });
+});
+
+
+/**
+ * **Feature: knowledge-lens, Property 4: Context window extraction**
+ * **Validates: Requirements 3.1**
+ *
+ * For any text selection within a document, the context extraction function
+ * SHALL return exactly up to 500 characters before and 500 characters after
+ * the selection (or less if at document boundaries).
+ */
+describe('Property 4: Context window extraction', () => {
+  // Generate non-empty text strings
+  const nonEmptyTextArb = fc.string({ minLength: 1, maxLength: 200 }).map((s) =>
+    s.replace(/[^\w\s]/g, 'a') || 'text'
+  );
+
+  // Generate a document with selection position
+  const documentWithSelectionArb = fc.tuple(
+    fc.string({ minLength: 10, maxLength: 2000 }).map((s) => s.replace(/[^\w\s]/g, 'a') || 'document text'),
+    fc.nat({ max: 100 }).map((n) => Math.max(1, n)) // selection length
+  ).chain(([fullText, selLen]) => {
+    const maxStart = Math.max(0, fullText.length - selLen);
+    return fc.tuple(
+      fc.constant(fullText),
+      fc.nat({ max: maxStart }),
+      fc.constant(Math.min(selLen, fullText.length))
+    );
+  });
+
+  it('context before is at most CONTEXT_WINDOW_SIZE characters', () => {
+    fc.assert(
+      fc.property(documentWithSelectionArb, ([fullText, selectionStart, selLen]) => {
+        const selectedText = fullText.slice(selectionStart, selectionStart + selLen);
+        const result = extractContextWindow(selectedText, fullText, selectionStart);
+
+        return result.contextBefore.length <= CONTEXT_WINDOW_SIZE;
+      }),
+      { numRuns: 100 }
+    );
+  });
+
+  it('context after is at most CONTEXT_WINDOW_SIZE characters', () => {
+    fc.assert(
+      fc.property(documentWithSelectionArb, ([fullText, selectionStart, selLen]) => {
+        const selectedText = fullText.slice(selectionStart, selectionStart + selLen);
+        const result = extractContextWindow(selectedText, fullText, selectionStart);
+
+        return result.contextAfter.length <= CONTEXT_WINDOW_SIZE;
+      }),
+      { numRuns: 100 }
+    );
+  });
+
+  it('context before equals available characters when less than CONTEXT_WINDOW_SIZE', () => {
+    fc.assert(
+      fc.property(
+        fc.string({ minLength: 10, maxLength: 400 }).map((s) => s.replace(/[^\w\s]/g, 'a') || 'text'),
+        fc.nat({ max: 50 }),
+        (fullText, startOffset) => {
+          // Selection near the start of document
+          const selectionStart = Math.min(startOffset, fullText.length - 1);
+          const selectedText = fullText.slice(selectionStart, selectionStart + 5) || 'x';
+          const result = extractContextWindow(selectedText, fullText, selectionStart);
+
+          // Context before should be exactly the available characters (up to selectionStart)
+          const expectedLength = Math.min(selectionStart, CONTEXT_WINDOW_SIZE);
+          return result.contextBefore.length === expectedLength;
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('context after equals available characters when less than CONTEXT_WINDOW_SIZE', () => {
+    fc.assert(
+      fc.property(
+        fc.string({ minLength: 10, maxLength: 400 }).map((s) => s.replace(/[^\w\s]/g, 'a') || 'text'),
+        fc.nat({ max: 50 }),
+        (fullText, endOffset) => {
+          // Selection near the end of document
+          const selectionEnd = Math.max(fullText.length - endOffset, 1);
+          const selectionStart = Math.max(0, selectionEnd - 5);
+          const selectedText = fullText.slice(selectionStart, selectionEnd) || 'x';
+          const result = extractContextWindow(selectedText, fullText, selectionStart);
+
+          // Context after should be exactly the available characters
+          const actualSelectionEnd = selectionStart + selectedText.length;
+          const availableAfter = fullText.length - actualSelectionEnd;
+          const expectedLength = Math.min(availableAfter, CONTEXT_WINDOW_SIZE);
+          return result.contextAfter.length === expectedLength;
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('fullContext contains selectedText, contextBefore, and contextAfter in order', () => {
+    fc.assert(
+      fc.property(documentWithSelectionArb, ([fullText, selectionStart, selLen]) => {
+        const selectedText = fullText.slice(selectionStart, selectionStart + selLen);
+        const result = extractContextWindow(selectedText, fullText, selectionStart);
+
+        // Full context should be the concatenation
+        const expectedFullContext = result.contextBefore + result.selectedText + result.contextAfter;
+        return result.fullContext === expectedFullContext;
+      }),
+      { numRuns: 100 }
+    );
+  });
+
+  it('extracted context matches the original document text', () => {
+    fc.assert(
+      fc.property(documentWithSelectionArb, ([fullText, selectionStart, selLen]) => {
+        const selectedText = fullText.slice(selectionStart, selectionStart + selLen);
+        const result = extractContextWindow(selectedText, fullText, selectionStart);
+
+        // The full context should be a substring of the original document
+        return fullText.includes(result.fullContext);
+      }),
+      { numRuns: 100 }
+    );
+  });
+
+  it('handles empty selection gracefully', () => {
+    const result = extractContextWindow('', 'some document text', 5);
+    expect(result.selectedText).toBe('');
+    expect(result.contextBefore).toBe('');
+    expect(result.contextAfter).toBe('');
+    expect(result.fullContext).toBe('');
+  });
+
+  it('handles empty document gracefully', () => {
+    const result = extractContextWindow('selection', '', 0);
+    expect(result.selectedText).toBe('selection');
+    expect(result.contextBefore).toBe('');
+    expect(result.contextAfter).toBe('');
+    expect(result.fullContext).toBe('selection');
   });
 });

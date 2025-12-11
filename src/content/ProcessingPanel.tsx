@@ -1,5 +1,9 @@
 // Processing Panel component for screenshot analysis
-// Requirements: 5.4 - Display captured screenshot, provide AI analysis options
+// Requirements: 5.4, 6.1, 6.2, 6.3, 6.4, 7.1, 7.2, 7.3, 7.4
+// - Display captured screenshot, provide AI analysis options
+// - Send screenshot to multimodal LLM for text extraction
+// - Generate note cards with metadata and QR codes
+// - Download and copy note cards
 
 import { useState, useEffect, useCallback } from 'react';
 import type { ScreenshotResult, StreamingMessage } from '../types';
@@ -9,7 +13,13 @@ interface ProcessingPanelProps {
   onClose: () => void;
 }
 
-type PanelMode = 'idle' | 'loading' | 'streaming' | 'success' | 'error';
+type PanelMode = 'idle' | 'loading' | 'streaming' | 'success' | 'error' | 'notecard';
+
+interface NoteCardResult {
+  imageDataUrl: string;
+  width: number;
+  height: number;
+}
 
 // Close icon
 const CloseIcon = () => (
@@ -72,6 +82,8 @@ export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [requestId, setRequestId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [noteCard, setNoteCard] = useState<NoteCardResult | null>(null);
+  const [noteCardCopied, setNoteCardCopied] = useState(false);
 
   // Handle streaming messages
   useEffect(() => {
@@ -138,6 +150,7 @@ export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
   const handleGenerateNoteCard = useCallback(() => {
     setMode('loading');
     setError(null);
+    setNoteCard(null);
 
     chrome.runtime.sendMessage(
       {
@@ -151,9 +164,9 @@ export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
         },
       },
       (response) => {
-        if (response?.success) {
-          // Note card generation handled by background
-          setMode('success');
+        if (response?.success && response.data) {
+          setNoteCard(response.data as NoteCardResult);
+          setMode('notecard');
         } else if (response?.error) {
           setError(response.error);
           setMode('error');
@@ -178,6 +191,33 @@ export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
     link.href = `data:image/png;base64,${screenshot.imageBase64}`;
     link.download = `screenshot-${Date.now()}.png`;
     link.click();
+  };
+
+  // Download note card as image (Requirement 7.4)
+  const handleDownloadNoteCard = () => {
+    if (!noteCard) return;
+    const link = document.createElement('a');
+    link.href = noteCard.imageDataUrl;
+    link.download = `note-card-${Date.now()}.png`;
+    link.click();
+  };
+
+  // Copy note card to clipboard (Requirement 7.4)
+  const handleCopyNoteCard = async () => {
+    if (!noteCard) return;
+    try {
+      const response = await fetch(noteCard.imageDataUrl);
+      const blob = await response.blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          [blob.type]: blob,
+        }),
+      ]);
+      setNoteCardCopied(true);
+      setTimeout(() => setNoteCardCopied(false), 2000);
+    } catch {
+      // Clipboard API might fail in some contexts
+    }
   };
 
   return (
@@ -261,6 +301,37 @@ export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
               {mode === 'streaming' && (
                 <span className="inline-block w-2 h-4 bg-blue-500 ml-1 animate-pulse" />
               )}
+            </div>
+          </div>
+        )}
+
+        {mode === 'notecard' && noteCard && (
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-gray-500">Generated Note Card</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCopyNoteCard}
+                  className="px-2 py-1 rounded text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center gap-1 cursor-pointer transition border-0"
+                >
+                  <CopyIcon />
+                  <span>{noteCardCopied ? 'Copied!' : 'Copy'}</span>
+                </button>
+                <button
+                  onClick={handleDownloadNoteCard}
+                  className="px-2 py-1 rounded text-xs bg-blue-500 hover:bg-blue-600 text-white flex items-center gap-1 cursor-pointer transition border-0"
+                >
+                  <DownloadIcon />
+                  <span>Download</span>
+                </button>
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <img
+                src={noteCard.imageDataUrl}
+                alt="Generated note card"
+                className="w-full rounded shadow-md"
+              />
             </div>
           </div>
         )}

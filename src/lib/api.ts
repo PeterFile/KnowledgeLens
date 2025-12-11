@@ -599,72 +599,15 @@ async function searchWithGoogleCustomSearch(
   }));
 }
 
-// Common English stop words
-const ENGLISH_STOP_WORDS = new Set([
-  'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-  'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been',
-  'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
-  'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need',
-  'it', 'its', 'this', 'that', 'these', 'those', 'i', 'you', 'he',
-  'she', 'we', 'they', 'what', 'which', 'who', 'whom', 'when', 'where',
-  'why', 'how', 'all', 'each', 'every', 'both', 'few', 'more', 'most',
-  'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same',
-  'so', 'than', 'too', 'very', 'just', 'also', 'now', 'here', 'there',
-]);
-
-// Common Chinese stop words
-const CHINESE_STOP_WORDS = new Set([
-  '的', '了', '是', '在', '我', '有', '和', '就', '不', '人', '都', '一',
-  '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着',
-  '没有', '看', '好', '自己', '这', '那', '他', '她', '它', '们', '这个',
-  '那个', '什么', '怎么', '为什么', '可以', '能', '但是', '因为', '所以',
-  '如果', '虽然', '而且', '或者', '还是', '已经', '正在', '将要', '曾经',
-]);
-
-/**
- * Check if text contains Chinese characters
- */
-function containsChinese(text: string): boolean {
-  return /[\u4e00-\u9fff]/.test(text);
-}
-
-/**
- * Segment Chinese text into words using a simple approach
- * Uses common word boundaries and character-based extraction
- */
-function segmentChinese(text: string): string[] {
-  const words: string[] = [];
-
-  // Extract sequences of Chinese characters (2-4 chars as potential words)
-  const chineseMatches = text.match(/[\u4e00-\u9fff]{2,4}/g) ?? [];
-  words.push(...chineseMatches);
-
-  // Also extract single important characters that might be keywords
-  const singleChars = text.match(/[\u4e00-\u9fff]/g) ?? [];
-  // Only add single chars if they appear multiple times (likely important)
-  const charFreq = new Map<string, number>();
-  for (const char of singleChars) {
-    charFreq.set(char, (charFreq.get(char) ?? 0) + 1);
-  }
-  for (const [char, count] of charFreq) {
-    if (count >= 3 && !CHINESE_STOP_WORDS.has(char)) {
-      words.push(char);
-    }
-  }
-
-  return words;
-}
-
 /**
  * Build a search-enhanced prompt combining selected text with search results
- * The combined prompt includes the original text and all search result snippets
  */
 export function buildSearchEnhancedPrompt(
   selectedText: string,
   searchResults: SearchResult[]
 ): string {
   const searchContext = searchResults
-    .map((result, index) => 
+    .map((result, index) =>
       `[${index + 1}] ${result.title}\n${result.snippet}\nSource: ${result.url}`
     )
     .join('\n\n');
@@ -678,45 +621,73 @@ Please provide an explanation of the selected text, incorporating relevant infor
 }
 
 /**
- * Extract keywords from text for search queries
- * Supports both English and Chinese text
+ * Use LLM to generate an optimal search query from user-selected text.
+ * This is the "Agentic" approach - letting the model understand intent
+ * rather than using heuristic keyword extraction.
+ */
+export async function generateSearchQuery(
+  selectedText: string,
+  config: LLMConfig,
+  signal?: AbortSignal
+): Promise<string> {
+  // Use a fast/cheap model for query generation
+  const queryGenConfig: LLMConfig = {
+    ...config,
+    model: getFastModel(config.provider),
+  };
+
+  const messages: ChatMessage[] = [
+    {
+      role: 'system',
+      content: `You are a search query generator. Given user-selected text, output ONLY a concise search query (max 10 words) that captures the user's likely intent. No explanation, just the query.
+
+Examples:
+- Input: "He kicked the bucket" → Output: "kicked the bucket idiom meaning"
+- Input: "量子纠缠" → Output: "quantum entanglement explanation"
+- Input: "The mitochondria is the powerhouse of the cell" → Output: "mitochondria cell function biology"`,
+    },
+    {
+      role: 'user',
+      content: selectedText,
+    },
+  ];
+
+  let query = '';
+  await callLLMWithMessages(
+    messages,
+    queryGenConfig,
+    (chunk) => {
+      query += chunk;
+    },
+    signal
+  );
+
+  return query.trim() || selectedText.slice(0, 100);
+}
+
+/**
+ * Get a fast/cheap model for lightweight tasks like query generation
+ */
+function getFastModel(provider: 'openai' | 'anthropic' | 'gemini'): string {
+  switch (provider) {
+    case 'openai':
+      return 'gpt-5-nano';
+    case 'anthropic':
+      return 'claude-haiku-4-5-20251001';
+    case 'gemini':
+      return 'gemini-2.5-flash-lite';
+  }
+}
+
+/**
+ * @deprecated Use generateSearchQuery for better semantic understanding
+ * Simple fallback keyword extraction (no LLM required)
  */
 export function extractKeywords(text: string, maxKeywords = 5): string[] {
-  const hasChinese = containsChinese(text);
-  const words: string[] = [];
-
-  if (hasChinese) {
-    // Process Chinese text
-    const chineseWords = segmentChinese(text);
-    words.push(...chineseWords.filter((w) => !CHINESE_STOP_WORDS.has(w)));
-
-    // Also extract any English words in the text
-    const englishWords = text
-      .toLowerCase()
-      .replace(/[\u4e00-\u9fff]/g, ' ')
-      .replace(/[^\w\s]/g, ' ')
-      .split(/\s+/)
-      .filter((w) => w.length > 2 && !ENGLISH_STOP_WORDS.has(w));
-    words.push(...englishWords);
-  } else {
-    // Process English text
-    const englishWords = text
-      .toLowerCase()
-      .replace(/[^\w\s]/g, ' ')
-      .split(/\s+/)
-      .filter((w) => w.length > 2 && !ENGLISH_STOP_WORDS.has(w));
-    words.push(...englishWords);
-  }
-
-  // Count word frequency
-  const frequency = new Map<string, number>();
-  for (const word of words) {
-    frequency.set(word, (frequency.get(word) ?? 0) + 1);
-  }
-
-  // Sort by frequency and return top keywords
-  return [...frequency.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, maxKeywords)
-    .map(([word]) => word);
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s\u4e00-\u9fff]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2)
+    .slice(0, maxKeywords);
 }

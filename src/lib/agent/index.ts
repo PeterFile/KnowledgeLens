@@ -10,6 +10,7 @@ export * from './state';
 export * from './context';
 export * from './reflection';
 export * from './rag';
+export * from './logger';
 
 // Default configuration values
 export const DEFAULT_AGENT_CONFIG = {

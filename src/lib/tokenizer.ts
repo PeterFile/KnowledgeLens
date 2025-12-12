@@ -20,7 +20,7 @@ function getEncoder(encoding: TokenizerEncoding): Tiktoken {
  */
 export function getEncodingForModel(provider: string, model: string): TokenizerEncoding {
   const lowerModel = model.toLowerCase();
-  
+
   // OpenAI models
   if (provider === 'openai') {
     // GPT-4o and newer models use o200k_base
@@ -36,17 +36,17 @@ export function getEncodingForModel(provider: string, model: string): TokenizerE
       return 'p50k_base';
     }
   }
-  
+
   // Anthropic Claude models - use cl100k_base as approximation
   if (provider === 'anthropic') {
     return 'cl100k_base';
   }
-  
+
   // Google Gemini models - use cl100k_base as approximation
   if (provider === 'gemini') {
     return 'cl100k_base';
   }
-  
+
   // Default fallback
   return 'cl100k_base';
 }
@@ -70,14 +70,14 @@ export function truncateToTokens(
   encoding: TokenizerEncoding = 'cl100k_base'
 ): string {
   if (!text || maxTokens <= 0) return '';
-  
+
   const encoder = getEncoder(encoding);
   const tokens = encoder.encode(text);
-  
+
   if (tokens.length <= maxTokens) {
     return text;
   }
-  
+
   // Truncate tokens and decode back to text
   const truncatedTokens = tokens.slice(0, maxTokens);
   return encoder.decode(truncatedTokens);

@@ -12,9 +12,9 @@ import { cleanHtml, extractContextWindow, CONTEXT_WINDOW_SIZE } from '../../src/
  */
 describe('Property 1: Content extraction removes unwanted elements', () => {
   // Generate alphanumeric text for visible content
-  const alphanumericArb = fc.string({ minLength: 1, maxLength: 100 }).map((s) =>
-    s.replace(/[^a-zA-Z0-9 ]/g, 'x').trim() || 'text'
-  );
+  const alphanumericArb = fc
+    .string({ minLength: 1, maxLength: 100 })
+    .map((s) => s.replace(/[^a-zA-Z0-9 ]/g, 'x').trim() || 'text');
 
   it('removes script elements and their content', () => {
     fc.assert(
@@ -27,7 +27,8 @@ describe('Property 1: Content extraction removes unwanted elements', () => {
         // Script content should not appear in output
         const hasScriptContent = cleaned.includes(scriptContent);
         // Visible text should be preserved
-        const hasVisibleText = visibleText.trim().length === 0 || cleaned.includes(visibleText.trim());
+        const hasVisibleText =
+          visibleText.trim().length === 0 || cleaned.includes(visibleText.trim());
 
         return !hasScriptContent && hasVisibleText;
       }),
@@ -46,7 +47,8 @@ describe('Property 1: Content extraction removes unwanted elements', () => {
         const hasStyleContent = cleaned.includes('color: red');
         // Visible text should be preserved (normalized - multiple spaces become single space)
         const normalizedVisible = visibleText.replace(/\s+/g, ' ').trim();
-        const hasVisibleText = normalizedVisible.length === 0 || cleaned.includes(normalizedVisible);
+        const hasVisibleText =
+          normalizedVisible.length === 0 || cleaned.includes(normalizedVisible);
 
         return !hasStyleContent && hasVisibleText;
       }),
@@ -94,8 +96,10 @@ describe('Property 1: Content extraction removes unwanted elements', () => {
         const hasNoscript = cleaned.includes('Enable JS');
         const hasIframe = cleaned.includes('ad.html');
 
-        // Visible text should be preserved
-        const hasVisibleText = visibleText.trim().length === 0 || cleaned.includes(visibleText.trim());
+        // Visible text should be preserved (normalize whitespace for comparison)
+        const normalizedVisible = visibleText.replace(/\s+/g, ' ').trim();
+        const hasVisibleText =
+          normalizedVisible.length === 0 || cleaned.includes(normalizedVisible);
 
         return !hasScript && !hasStyle && !hasNoscript && !hasIframe && hasVisibleText;
       }),
@@ -113,9 +117,9 @@ describe('Property 1: Content extraction removes unwanted elements', () => {
  */
 describe('Property 13: HTML cleaning preserves visible text', () => {
   // Generate safe alphanumeric text
-  const safeTextArb = fc.string({ minLength: 1, maxLength: 100 }).map((s) =>
-    s.replace(/[^a-zA-Z0-9 ]/g, 'a').trim() || 'text'
-  );
+  const safeTextArb = fc
+    .string({ minLength: 1, maxLength: 100 })
+    .map((s) => s.replace(/[^a-zA-Z0-9 ]/g, 'a').trim() || 'text');
 
   it('preserves text in paragraph elements', () => {
     fc.assert(
@@ -189,7 +193,6 @@ describe('Property 13: HTML cleaning preserves visible text', () => {
   });
 });
 
-
 /**
  * **Feature: knowledge-lens, Property 4: Context window extraction**
  * **Validates: Requirements 3.1**
@@ -199,23 +202,22 @@ describe('Property 13: HTML cleaning preserves visible text', () => {
  * the selection (or less if at document boundaries).
  */
 describe('Property 4: Context window extraction', () => {
-  // Generate non-empty text strings
-  const nonEmptyTextArb = fc.string({ minLength: 1, maxLength: 200 }).map((s) =>
-    s.replace(/[^\w\s]/g, 'a') || 'text'
-  );
-
   // Generate a document with selection position
-  const documentWithSelectionArb = fc.tuple(
-    fc.string({ minLength: 10, maxLength: 2000 }).map((s) => s.replace(/[^\w\s]/g, 'a') || 'document text'),
-    fc.nat({ max: 100 }).map((n) => Math.max(1, n)) // selection length
-  ).chain(([fullText, selLen]) => {
-    const maxStart = Math.max(0, fullText.length - selLen);
-    return fc.tuple(
-      fc.constant(fullText),
-      fc.nat({ max: maxStart }),
-      fc.constant(Math.min(selLen, fullText.length))
-    );
-  });
+  const documentWithSelectionArb = fc
+    .tuple(
+      fc
+        .string({ minLength: 10, maxLength: 2000 })
+        .map((s) => s.replace(/[^\w\s]/g, 'a') || 'document text'),
+      fc.nat({ max: 100 }).map((n) => Math.max(1, n)) // selection length
+    )
+    .chain(([fullText, selLen]) => {
+      const maxStart = Math.max(0, fullText.length - selLen);
+      return fc.tuple(
+        fc.constant(fullText),
+        fc.nat({ max: maxStart }),
+        fc.constant(Math.min(selLen, fullText.length))
+      );
+    });
 
   it('context before is at most CONTEXT_WINDOW_SIZE characters', () => {
     fc.assert(
@@ -244,7 +246,9 @@ describe('Property 4: Context window extraction', () => {
   it('context before equals available characters when less than CONTEXT_WINDOW_SIZE', () => {
     fc.assert(
       fc.property(
-        fc.string({ minLength: 10, maxLength: 400 }).map((s) => s.replace(/[^\w\s]/g, 'a') || 'text'),
+        fc
+          .string({ minLength: 10, maxLength: 400 })
+          .map((s) => s.replace(/[^\w\s]/g, 'a') || 'text'),
         fc.nat({ max: 50 }),
         (fullText, startOffset) => {
           // Selection near the start of document
@@ -264,7 +268,9 @@ describe('Property 4: Context window extraction', () => {
   it('context after equals available characters when less than CONTEXT_WINDOW_SIZE', () => {
     fc.assert(
       fc.property(
-        fc.string({ minLength: 10, maxLength: 400 }).map((s) => s.replace(/[^\w\s]/g, 'a') || 'text'),
+        fc
+          .string({ minLength: 10, maxLength: 400 })
+          .map((s) => s.replace(/[^\w\s]/g, 'a') || 'text'),
         fc.nat({ max: 50 }),
         (fullText, endOffset) => {
           // Selection near the end of document
@@ -291,7 +297,8 @@ describe('Property 4: Context window extraction', () => {
         const result = extractContextWindow(selectedText, fullText, selectionStart);
 
         // Full context should be the concatenation
-        const expectedFullContext = result.contextBefore + result.selectedText + result.contextAfter;
+        const expectedFullContext =
+          result.contextBefore + result.selectedText + result.contextAfter;
         return result.fullContext === expectedFullContext;
       }),
       { numRuns: 100 }

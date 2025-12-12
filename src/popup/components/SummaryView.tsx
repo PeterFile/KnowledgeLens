@@ -135,9 +135,7 @@ export function SummaryView({
       {state.status === 'loading' && (
         <div className="flex-1">
           <SkeletonLoader />
-          {timeoutWarning && (
-            <TimeoutWarning onCancel={handleCancel} onRetry={handleSummarize} />
-          )}
+          {timeoutWarning && <TimeoutWarning onCancel={handleCancel} onRetry={handleSummarize} />}
         </div>
       )}
 

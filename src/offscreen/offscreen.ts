@@ -32,7 +32,7 @@ type OffscreenResponse = CropImageResponse | CropImageErrorResponse;
 function cropImage(imageDataUrl: string, region: ScreenshotRegion): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    
+
     img.onload = () => {
       try {
         // Account for device pixel ratio in the captured image
@@ -57,8 +57,14 @@ function cropImage(imageDataUrl: string, region: ScreenshotRegion): Promise<stri
         // Draw the cropped region
         ctx.drawImage(
           img,
-          sourceX, sourceY, sourceWidth, sourceHeight,  // Source rectangle
-          0, 0, sourceWidth, sourceHeight               // Destination rectangle
+          sourceX,
+          sourceY,
+          sourceWidth,
+          sourceHeight, // Source rectangle
+          0,
+          0,
+          sourceWidth,
+          sourceHeight // Destination rectangle
         );
 
         // Convert to base64 PNG
@@ -101,11 +107,11 @@ chrome.runtime.onMessage.addListener(
             error: error instanceof Error ? error.message : 'Unknown error',
           });
         });
-      
+
       // Return true to indicate async response
       return true;
     }
-    
+
     return false;
   }
 );

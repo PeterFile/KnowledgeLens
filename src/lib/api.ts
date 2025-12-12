@@ -17,22 +17,21 @@ const API_ENDPOINTS = {
   google: 'https://www.googleapis.com/customsearch/v1',
 } as const;
 
-
 const DEFAULT_MAX_TOKENS: Record<string, number> = {
   // --- OpenAI Models (Generation 5) ---
-  'gpt-5.1': 400000,  
-  'gpt-5-mini': 400000, 
+  'gpt-5.1': 400000,
+  'gpt-5-mini': 400000,
   'gpt-5-nano': 400000,
-  'gpt-4.1': 1000000, 
+  'gpt-4.1': 1000000,
   // Legacy (Keep for backward compatibility)
   'gpt-4o': 128000,
-  
+
   // --- Anthropic Claude Models (Generation 4.5) ---
   'claude-sonnet-4-5-20250929': 500000,
-  'claude-haiku-4-5-20251001': 500000, 
+  'claude-haiku-4-5-20251001': 500000,
   'claude-opus-4-5-20251101': 500000,
   // Legacy (Deprecated but may still work briefly)
-  'claude-3-7-sonnet-latest': 200000, 
+  'claude-3-7-sonnet-latest': 200000,
 
   // --- Google Gemini Models (Generation 3.0 & 2.5) ---
   'gemini-3.0-pro': 2000000,
@@ -226,7 +225,6 @@ async function callGeminiWithMessages(
   return parseSSEStream(response, onToken, 'gemini');
 }
 
-
 /**
  * Parse Server-Sent Events stream from LLM providers
  */
@@ -309,7 +307,6 @@ function extractChunkContent(
       return null;
   }
 }
-
 
 /**
  * Multimodal LLM call with image support (for vision models)
@@ -456,7 +453,6 @@ async function callAnthropicWithImage(
   };
 }
 
-
 /**
  * Gemini vision API call
  */
@@ -511,7 +507,6 @@ async function callGeminiWithImage(
     content: data.candidates?.[0]?.content?.parts?.[0]?.text ?? '',
   };
 }
-
 
 /**
  * Search the web using configured search provider
@@ -607,8 +602,8 @@ export function buildSearchEnhancedPrompt(
   searchResults: SearchResult[]
 ): string {
   const searchContext = searchResults
-    .map((result, index) =>
-      `[${index + 1}] ${result.title}\n${result.snippet}\nSource: ${result.url}`
+    .map(
+      (result, index) => `[${index + 1}] ${result.title}\n${result.snippet}\nSource: ${result.url}`
     )
     .join('\n\n');
 
@@ -679,15 +674,113 @@ function getFastModel(provider: 'openai' | 'anthropic' | 'gemini'): string {
   }
 }
 
+// Common stop words to filter out from keyword extraction
+const STOP_WORDS = new Set([
+  'a',
+  'an',
+  'the',
+  'and',
+  'or',
+  'but',
+  'in',
+  'on',
+  'at',
+  'to',
+  'for',
+  'of',
+  'with',
+  'by',
+  'from',
+  'as',
+  'is',
+  'was',
+  'are',
+  'were',
+  'been',
+  'be',
+  'have',
+  'has',
+  'had',
+  'do',
+  'does',
+  'did',
+  'will',
+  'would',
+  'could',
+  'should',
+  'may',
+  'might',
+  'must',
+  'shall',
+  'can',
+  'need',
+  'it',
+  'its',
+  'this',
+  'that',
+  'these',
+  'those',
+  'i',
+  'you',
+  'he',
+  'she',
+  'we',
+  'they',
+  'what',
+  'which',
+  'who',
+  'whom',
+  'when',
+  'where',
+  'why',
+  'how',
+  'all',
+  'each',
+  'every',
+  'both',
+  'few',
+  'more',
+  'most',
+  'other',
+  'some',
+  'such',
+  'no',
+  'nor',
+  'not',
+  'only',
+  'own',
+  'same',
+  'so',
+  'than',
+  'too',
+  'very',
+  'just',
+  'also',
+  'now',
+  'here',
+  'there',
+]);
+
 /**
  * @deprecated Use generateSearchQuery for better semantic understanding
  * Simple fallback keyword extraction (no LLM required)
  */
 export function extractKeywords(text: string, maxKeywords = 5): string[] {
-  return text
+  const words = text
     .toLowerCase()
     .replace(/[^\w\s\u4e00-\u9fff]/g, ' ')
     .split(/\s+/)
-    .filter((w) => w.length > 2)
-    .slice(0, maxKeywords);
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+
+  // Count word frequencies
+  const freq = new Map<string, number>();
+  for (const word of words) {
+    freq.set(word, (freq.get(word) || 0) + 1);
+  }
+
+  // Sort by frequency (descending) and return unique keywords
+  return [...freq.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, maxKeywords)
+    .map(([word]) => word);
 }

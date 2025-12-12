@@ -14,7 +14,7 @@ export interface NoteCardData {
 /**
  * Validate that note card data contains all required metadata fields
  * Requirements: 7.1, 7.2
- * 
+ *
  * Returns an object indicating which metadata fields are present
  */
 export function validateNoteCardMetadata(data: NoteCardData): {
@@ -28,7 +28,7 @@ export function validateNoteCardMetadata(data: NoteCardData): {
   const hasFavicon = typeof data.favicon === 'string' && data.favicon.length > 0;
   const hasSourceUrl = typeof data.sourceUrl === 'string' && data.sourceUrl.length > 0;
   const hasScreenshot = typeof data.screenshot === 'string' && data.screenshot.length > 0;
-  
+
   return {
     hasTitle,
     hasFavicon,
@@ -89,11 +89,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 /**
  * Wrap text to fit within a given width
  */
-function wrapText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number
-): string[] {
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const words = text.split(' ');
   const lines: string[] = [];
   let currentLine = '';
@@ -150,7 +146,11 @@ export async function generateNoteCard(data: NoteCardData): Promise<NoteCard> {
 
   // Load images
   const [screenshotImg, qrCodeDataUrl] = await Promise.all([
-    loadImage(data.screenshot.startsWith('data:') ? data.screenshot : `data:image/png;base64,${data.screenshot}`),
+    loadImage(
+      data.screenshot.startsWith('data:')
+        ? data.screenshot
+        : `data:image/png;base64,${data.screenshot}`
+    ),
     generateQRCode(data.sourceUrl),
   ]);
 
@@ -282,11 +282,7 @@ export async function generateNoteCard(data: NoteCardData): Promise<NoteCard> {
 /**
  * Truncate text to fit within a given width
  */
-function truncateText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number
-): string {
+function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
   const metrics = ctx.measureText(text);
   if (metrics.width <= maxWidth) {
     return text;

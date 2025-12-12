@@ -56,7 +56,6 @@ export interface SummarizePayload {
   pageUrl: string;
 }
 
-
 export interface ExplainPayload {
   text: string;
   context: string;

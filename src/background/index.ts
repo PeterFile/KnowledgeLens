@@ -17,7 +17,13 @@ import type {
   StoredSettings,
   ChatMessage,
 } from '../types';
-import { callLLMWithMessages, callLLMWithImage, searchWeb, generateSearchQuery, getMaxContextTokens } from '../lib/api';
+import {
+  callLLMWithMessages,
+  callLLMWithImage,
+  searchWeb,
+  generateSearchQuery,
+  getMaxContextTokens,
+} from '../lib/api';
 import { truncateToTokens, getEncodingForModel } from '../lib/tokenizer';
 import { loadSettings } from '../lib/storage';
 import * as requestManager from '../lib/request-manager';
@@ -226,10 +232,13 @@ async function handleExplain(
     requestId: request.id,
   });
 
-  sendStreamingMessage({
-    type: 'streaming_start',
-    requestId: request.id,
-  }, tabId);
+  sendStreamingMessage(
+    {
+      type: 'streaming_start',
+      requestId: request.id,
+    },
+    tabId
+  );
 
   // Structured messages prevent prompt injection
   const messages: ChatMessage[] = [
@@ -254,30 +263,39 @@ ${payload.context}`,
       settings.llmConfig,
       (chunk) => {
         fullContent += chunk;
-        sendStreamingMessage({
-          type: 'streaming_chunk',
-          requestId: request.id,
-          chunk,
-        }, tabId);
+        sendStreamingMessage(
+          {
+            type: 'streaming_chunk',
+            requestId: request.id,
+            chunk,
+          },
+          tabId
+        );
       },
       request.controller.signal
     );
 
-    sendStreamingMessage({
-      type: 'streaming_end',
-      requestId: request.id,
-      content: fullContent,
-    }, tabId);
+    sendStreamingMessage(
+      {
+        type: 'streaming_end',
+        requestId: request.id,
+        content: fullContent,
+      },
+      tabId
+    );
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       return;
     }
 
-    sendStreamingMessage({
-      type: 'streaming_error',
-      requestId: request.id,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
-    }, tabId);
+    sendStreamingMessage(
+      {
+        type: 'streaming_error',
+        requestId: request.id,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      },
+      tabId
+    );
   } finally {
     requestManager.complete(request.id);
   }
@@ -326,10 +344,13 @@ async function handleSearchEnhance(
     requestId: request.id,
   });
 
-  sendStreamingMessage({
-    type: 'streaming_start',
-    requestId: request.id,
-  }, tabId);
+  sendStreamingMessage(
+    {
+      type: 'streaming_start',
+      requestId: request.id,
+    },
+    tabId
+  );
 
   try {
     // Use LLM to generate semantic search query (Agentic approach)
@@ -351,10 +372,7 @@ async function handleSearchEnhance(
         );
       } catch (searchError) {
         // Requirement 4.5: Fall back to explanation without search results
-        console.warn(
-          'Search failed, falling back to contextual explanation:',
-          searchError
-        );
+        console.warn('Search failed, falling back to contextual explanation:', searchError);
       }
     }
 
@@ -380,30 +398,39 @@ ${payload.context}${formatSearchResults(searchResults)}`,
       settings.llmConfig,
       (chunk) => {
         fullContent += chunk;
-        sendStreamingMessage({
-          type: 'streaming_chunk',
-          requestId: request.id,
-          chunk,
-        }, tabId);
+        sendStreamingMessage(
+          {
+            type: 'streaming_chunk',
+            requestId: request.id,
+            chunk,
+          },
+          tabId
+        );
       },
       request.controller.signal
     );
 
-    sendStreamingMessage({
-      type: 'streaming_end',
-      requestId: request.id,
-      content: fullContent,
-    }, tabId);
+    sendStreamingMessage(
+      {
+        type: 'streaming_end',
+        requestId: request.id,
+        content: fullContent,
+      },
+      tabId
+    );
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       return;
     }
 
-    sendStreamingMessage({
-      type: 'streaming_error',
-      requestId: request.id,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
-    }, tabId);
+    sendStreamingMessage(
+      {
+        type: 'streaming_error',
+        requestId: request.id,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      },
+      tabId
+    );
   } finally {
     requestManager.complete(request.id);
   }
@@ -438,10 +465,7 @@ async function handleCaptureScreenshot(
   const request = requestManager.create();
 
   try {
-    const croppedImageBase64 = await captureAndCropScreenshot(
-      payload.tabId,
-      payload.region
-    );
+    const croppedImageBase64 = await captureAndCropScreenshot(payload.tabId, payload.region);
 
     sendResponse({
       success: true,
@@ -546,7 +570,10 @@ async function handleGenerateNoteCard(
       try {
         const messages: ChatMessage[] = [
           { role: 'system', content: SYSTEM_PROMPTS.noteCardSummary },
-          { role: 'user', content: `Please provide a brief, insightful summary of this content:\n\n${payload.extractedText}` },
+          {
+            role: 'user',
+            content: `Please provide a brief, insightful summary of this content:\n\n${payload.extractedText}`,
+          },
         ];
 
         let summaryContent = '';
@@ -604,51 +631,49 @@ async function handleGenerateNoteCard(
  * Uses discriminated unions for compile-time type safety
  * Requirements: 1.1, 2.2, 3.2, 4.3
  */
-chrome.runtime.onMessage.addListener(
-  (message: ExtensionMessage, sender, sendResponse) => {
-    const tabId = sender.tab?.id;
+chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
+  const tabId = sender.tab?.id;
 
-    switch (message.action) {
-      case 'summarize_page':
-        handleSummarize(message.payload, sendResponse);
-        return true; // Keep channel open for async response
+  switch (message.action) {
+    case 'summarize_page':
+      handleSummarize(message.payload, sendResponse);
+      return true; // Keep channel open for async response
 
-      case 'explain_text':
-        handleExplain(message.payload, sendResponse, tabId);
-        return true;
+    case 'explain_text':
+      handleExplain(message.payload, sendResponse, tabId);
+      return true;
 
-      case 'search_enhance':
-        handleSearchEnhance(message.payload, sendResponse, tabId);
-        return true;
+    case 'search_enhance':
+      handleSearchEnhance(message.payload, sendResponse, tabId);
+      return true;
 
-      case 'cancel_request':
-        handleCancelRequest(message.payload, sendResponse);
-        return false; // Sync response
+    case 'cancel_request':
+      handleCancelRequest(message.payload, sendResponse);
+      return false; // Sync response
 
-      case 'capture_screenshot':
-        handleCaptureScreenshot(message.payload, sendResponse);
-        return true; // Keep channel open for async response
+    case 'capture_screenshot':
+      handleCaptureScreenshot(message.payload, sendResponse);
+      return true; // Keep channel open for async response
 
-      case 'extract_screenshot':
-        handleExtractScreenshot(message.payload, sendResponse);
-        return true; // Keep channel open for async response
+    case 'extract_screenshot':
+      handleExtractScreenshot(message.payload, sendResponse);
+      return true; // Keep channel open for async response
 
-      case 'generate_note_card':
-        handleGenerateNoteCard(message.payload, sendResponse);
-        return true; // Keep channel open for async response
+    case 'generate_note_card':
+      handleGenerateNoteCard(message.payload, sendResponse);
+      return true; // Keep channel open for async response
 
-      default: {
-        const exhaustiveCheck: never = message;
-        void exhaustiveCheck;
-        sendResponse({
-          success: false,
-          error: 'Unknown action',
-          requestId: '',
-        });
-        return false;
-      }
+    default: {
+      const exhaustiveCheck: never = message;
+      void exhaustiveCheck;
+      sendResponse({
+        success: false,
+        error: 'Unknown action',
+        requestId: '',
+      });
+      return false;
     }
   }
-);
+});
 
 export {};

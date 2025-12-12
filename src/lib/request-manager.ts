@@ -34,7 +34,7 @@ export function create(): ActiveRequest {
 export function cancel(id: string): boolean {
   const request = activeRequests.get(id);
   if (!request) return false;
-  
+
   request.controller.abort();
   activeRequests.delete(id);
   return true;

@@ -36,7 +36,7 @@ async function ensureOffscreenDocument(): Promise<void> {
 /**
  * Capture the visible tab and crop to the specified region
  * Requirements: 5.2, 5.3
- * 
+ *
  * @param _tabId - Tab ID (reserved for future use, currently captures active window)
  * @param region - The region to crop from the screenshot
  */

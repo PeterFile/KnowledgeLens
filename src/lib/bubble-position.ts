@@ -49,10 +49,7 @@ export function calculateBubblePosition(
 /**
  * Check if a bubble position is within viewport bounds.
  */
-export function isWithinViewport(
-  position: BubblePosition,
-  viewport: ViewportDimensions
-): boolean {
+export function isWithinViewport(position: BubblePosition, viewport: ViewportDimensions): boolean {
   return (
     position.left >= 0 &&
     position.top >= 0 &&

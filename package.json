@@ -15,7 +15,9 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
     "prepare": "husky",
     "release": "standard-version",
-    "release:first": "standard-version --first-release"
+    "release:first": "standard-version --first-release",
+    "release:prep": "standard-version --skip.tag",
+    "release:tag": "node scripts/tag-release.js"
   },
   "keywords": [
     "chrome-extension",

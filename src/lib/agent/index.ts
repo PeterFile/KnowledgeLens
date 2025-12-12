@@ -11,6 +11,7 @@ export * from './context';
 export * from './reflection';
 export * from './rag';
 export * from './logger';
+export * from './loop';
 
 // Default configuration values
 export const DEFAULT_AGENT_CONFIG = {

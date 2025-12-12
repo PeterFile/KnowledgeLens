@@ -7,6 +7,7 @@ import {
   extractTagContent,
   calculateRelevanceRatio,
   filterRelevantResults,
+  formatResultsForCitation,
 } from '../../../src/lib/agent/rag';
 import type { SearchResult } from '../../../src/types';
 import type { GradedResult, RelevanceGrade } from '../../../src/lib/agent/types';
@@ -619,6 +620,188 @@ describe('Property-Based Tests', () => {
 
             // Property: Extracted query is never empty when input was non-empty
             expect(extracted.length).toBeGreaterThan(0);
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+  });
+
+  /**
+   * **Feature: agent-architecture-upgrade, Property 9: Citation Integrity**
+   * **Validates: Requirements 4.5**
+   *
+   * Property: For any final response that includes citations, all cited sources
+   * SHALL have been graded as 'relevant'.
+   */
+  describe('Property 9: Citation Integrity', () => {
+    it('filterRelevantResults only returns results graded as relevant', () => {
+      fc.assert(
+        fc.property(
+          fc.array(
+            fc.record({
+              result: searchResultArb,
+              relevance: relevanceGradeArb,
+              confidence: confidenceArb,
+              reasoning: reasoningArb,
+            }),
+            { minLength: 0, maxLength: 20 }
+          ),
+          (gradedResults) => {
+            const filtered = filterRelevantResults(gradedResults);
+
+            // Property: Every result in the filtered list has relevance === 'relevant'
+            for (const result of filtered) {
+              expect(result.relevance).toBe('relevant');
+            }
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('formatResultsForCitation only includes relevant results when given filtered input', () => {
+      fc.assert(
+        fc.property(
+          fc.array(
+            fc.record({
+              result: searchResultArb,
+              relevance: relevanceGradeArb,
+              confidence: confidenceArb,
+              reasoning: reasoningArb,
+            }),
+            { minLength: 1, maxLength: 10 }
+          ),
+          (gradedResults) => {
+            // First filter to get only relevant results (as the system does)
+            const relevantOnly = filterRelevantResults(gradedResults);
+
+            // Format for citation
+            const formatted = formatResultsForCitation(relevantOnly);
+
+            // Property: If there are relevant results, each one should appear in the formatted output
+            for (const result of relevantOnly) {
+              expect(formatted).toContain(result.result.url);
+              expect(formatted).toContain(result.result.title);
+            }
+
+            // Property: No not_relevant results should appear in the formatted output
+            const notRelevant = gradedResults.filter((r) => r.relevance === 'not_relevant');
+            for (const result of notRelevant) {
+              // Only check if the URL is unique to not_relevant results
+              const isUrlUniqueToNotRelevant = !relevantOnly.some(
+                (r) => r.result.url === result.result.url
+              );
+              if (isUrlUniqueToNotRelevant) {
+                expect(formatted).not.toContain(result.result.url);
+              }
+            }
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('citation workflow preserves only relevant sources end-to-end', () => {
+      fc.assert(
+        fc.property(
+          searchResultsArb,
+          fc.array(
+            fc.record({
+              relevance: relevanceGradeArb,
+              confidence: confidenceArb,
+              reasoning: reasoningArb,
+            }),
+            { minLength: 1, maxLength: 10 }
+          ),
+          (results, grades) => {
+            // Simulate the full citation workflow:
+            // 1. Parse grading response
+            const response = generateGradingResponse(results, grades);
+            const gradedResults = parseGradingResponse(response, results);
+
+            // 2. Filter to relevant only
+            const relevantResults = filterRelevantResults(gradedResults);
+
+            // 3. Format for citation
+            const citations = formatResultsForCitation(relevantResults);
+
+            // Property: All URLs in citations belong to results graded as 'relevant'
+            const relevantUrls = new Set(relevantResults.map((r) => r.result.url));
+
+            // Extract URLs from the formatted citations
+            const urlPattern = /Source: (https?:\/\/[^\s\n]+)/g;
+            let match;
+            while ((match = urlPattern.exec(citations)) !== null) {
+              const citedUrl = match[1];
+              // Property: Every cited URL was graded as relevant
+              expect(relevantUrls.has(citedUrl)).toBe(true);
+            }
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('no citations appear when all results are not_relevant', () => {
+      fc.assert(
+        fc.property(
+          fc.array(
+            fc.record({
+              result: searchResultArb,
+              relevance: fc.constant('not_relevant' as RelevanceGrade),
+              confidence: confidenceArb,
+              reasoning: reasoningArb,
+            }),
+            { minLength: 1, maxLength: 10 }
+          ),
+          (allNotRelevant) => {
+            // Filter (should return empty)
+            const filtered = filterRelevantResults(allNotRelevant);
+
+            // Property: No relevant results when all are not_relevant
+            expect(filtered).toHaveLength(0);
+
+            // Format for citation
+            const citations = formatResultsForCitation(filtered);
+
+            // Property: Should indicate no sources found
+            expect(citations).toBe('No relevant sources found.');
+
+            // Property: None of the not_relevant URLs should appear
+            for (const result of allNotRelevant) {
+              expect(citations).not.toContain(result.result.url);
+            }
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('citation count matches relevant result count', () => {
+      fc.assert(
+        fc.property(
+          fc.array(
+            fc.record({
+              result: searchResultArb,
+              relevance: relevanceGradeArb,
+              confidence: confidenceArb,
+              reasoning: reasoningArb,
+            }),
+            { minLength: 0, maxLength: 15 }
+          ),
+          (gradedResults) => {
+            const relevantResults = filterRelevantResults(gradedResults);
+            const citations = formatResultsForCitation(relevantResults);
+
+            if (relevantResults.length === 0) {
+              // Property: Empty results produce "No relevant sources found."
+              expect(citations).toBe('No relevant sources found.');
+            } else {
+              // Property: Number of "Source:" entries matches relevant count
+              const sourceMatches = citations.match(/Source:/g) || [];
+              expect(sourceMatches.length).toBe(relevantResults.length);
+            }
           }
         ),
         { numRuns: 100 }

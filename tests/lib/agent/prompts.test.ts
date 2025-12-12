@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import * as fc from 'fast-check';
 import {
   loadTemplate,
   validateTemplate,
@@ -11,7 +12,7 @@ import {
   clearTemplates,
   TEMPLATES,
 } from '../../../src/lib/agent/prompts';
-import type { PromptTemplate } from '../../../src/lib/agent/types';
+import type { PromptTemplate, DelimiterType, PlaceholderType } from '../../../src/lib/agent/types';
 
 describe('Prompt Template System', () => {
   beforeEach(() => {
@@ -371,6 +372,227 @@ describe('Prompt Template System', () => {
 
       expect(result).toContain('tool1, tool2');
       expect(result).toContain('Help the user');
+    });
+  });
+});
+
+// ============================================================================
+// Property-Based Tests
+// ============================================================================
+
+/**
+ * **Feature: agent-architecture-upgrade, Property 16: Prompt Template Round-Trip**
+ * **Validates: Requirements 8.5**
+ *
+ * Property: For any valid prompt template, serializing it to string and parsing
+ * it back SHALL produce an equivalent template structure.
+ */
+describe('Property-Based Tests', () => {
+  // Arbitraries for generating valid template components
+  const delimiterArb: fc.Arbitrary<DelimiterType> = fc.constantFrom('xml', 'markdown');
+  const placeholderTypeArb: fc.Arbitrary<PlaceholderType> = fc.constantFrom(
+    'string',
+    'array',
+    'object'
+  );
+
+  // Generate valid identifier names (alphanumeric, starting with letter)
+  const identifierArb = fc.stringMatching(/^[a-zA-Z][a-zA-Z0-9_]{0,19}$/);
+
+  // Generate content that doesn't contain serialization markers
+  const safeContentArb = fc
+    .string({ minLength: 1, maxLength: 200 })
+    .filter(
+      (s) =>
+        !s.includes('---TEMPLATE---') &&
+        !s.includes('---SECTION---') &&
+        !s.includes('---PLACEHOLDERS---') &&
+        s.trim().length > 0
+    );
+
+  // Generate a valid PromptTemplate
+  const templateArb: fc.Arbitrary<PromptTemplate> = fc
+    .tuple(
+      identifierArb,
+      fc.integer({ min: 1, max: 5 }), // number of sections
+      fc.integer({ min: 0, max: 5 }) // number of placeholders
+    )
+    .chain(([name, numSections, numPlaceholders]) => {
+      // Generate unique section names
+      return fc
+        .uniqueArray(identifierArb, { minLength: numSections, maxLength: numSections })
+        .chain((sectionNames) => {
+          // Generate sections with unique names
+          const sectionsArb = fc.tuple(
+            ...sectionNames.map((sectionName) =>
+              fc
+                .record({
+                  name: fc.constant(sectionName),
+                  delimiter: delimiterArb,
+                  content: safeContentArb,
+                  required: fc.boolean(),
+                })
+                .map((section) => {
+                  if (section.required && section.content.trim() === '') {
+                    return { ...section, content: 'required content' };
+                  }
+                  return section;
+                })
+            )
+          );
+
+          // Generate unique placeholder names
+          return sectionsArb.chain((sections) => {
+            return fc
+              .uniqueArray(identifierArb, {
+                minLength: numPlaceholders,
+                maxLength: numPlaceholders,
+              })
+              .chain((placeholderNames) => {
+                const placeholdersArb = fc.tuple(
+                  ...placeholderNames.map((phName) =>
+                    fc.record({
+                      name: fc.constant(phName),
+                      type: placeholderTypeArb,
+                      required: fc.boolean(),
+                    })
+                  )
+                );
+
+                return placeholdersArb.map((placeholders) => ({
+                  name,
+                  sections: sections as PromptSection[],
+                  placeholders: placeholders as PlaceholderDef[],
+                }));
+              });
+          });
+        });
+    });
+
+  describe('Property 16: Prompt Template Round-Trip', () => {
+    it('serialize then parse produces equivalent template', () => {
+      fc.assert(
+        fc.property(templateArb, (template) => {
+          // Ensure template is valid before testing round-trip
+          const validation = validateTemplate(template);
+          fc.pre(validation.valid);
+
+          // Serialize and parse
+          const serialized = serializeTemplate(template);
+          const parsed = parseTemplate(serialized);
+
+          // Verify structural equivalence
+          expect(parsed.name).toBe(template.name);
+          expect(parsed.sections).toHaveLength(template.sections.length);
+          expect(parsed.placeholders).toHaveLength(template.placeholders.length);
+
+          // Verify each section
+          for (let i = 0; i < template.sections.length; i++) {
+            expect(parsed.sections[i].name).toBe(template.sections[i].name);
+            expect(parsed.sections[i].delimiter).toBe(template.sections[i].delimiter);
+            expect(parsed.sections[i].content).toBe(template.sections[i].content);
+            expect(parsed.sections[i].required).toBe(template.sections[i].required);
+          }
+
+          // Verify each placeholder
+          for (let i = 0; i < template.placeholders.length; i++) {
+            expect(parsed.placeholders[i].name).toBe(template.placeholders[i].name);
+            expect(parsed.placeholders[i].type).toBe(template.placeholders[i].type);
+            expect(parsed.placeholders[i].required).toBe(template.placeholders[i].required);
+          }
+        }),
+        { numRuns: 100 }
+      );
+    });
+
+    it('double round-trip produces identical result', () => {
+      fc.assert(
+        fc.property(templateArb, (template) => {
+          const validation = validateTemplate(template);
+          fc.pre(validation.valid);
+
+          // First round-trip
+          const serialized1 = serializeTemplate(template);
+          const parsed1 = parseTemplate(serialized1);
+
+          // Second round-trip
+          const serialized2 = serializeTemplate(parsed1);
+          const parsed2 = parseTemplate(serialized2);
+
+          // Both parsed results should be identical
+          expect(parsed2.name).toBe(parsed1.name);
+          expect(parsed2.sections).toHaveLength(parsed1.sections.length);
+          expect(parsed2.placeholders).toHaveLength(parsed1.placeholders.length);
+
+          for (let i = 0; i < parsed1.sections.length; i++) {
+            expect(parsed2.sections[i]).toEqual(parsed1.sections[i]);
+          }
+
+          for (let i = 0; i < parsed1.placeholders.length; i++) {
+            expect(parsed2.placeholders[i]).toEqual(parsed1.placeholders[i]);
+          }
+        }),
+        { numRuns: 100 }
+      );
+    });
+
+    it('round-trip preserves template validity', () => {
+      fc.assert(
+        fc.property(templateArb, (template) => {
+          const originalValidation = validateTemplate(template);
+          fc.pre(originalValidation.valid);
+
+          const serialized = serializeTemplate(template);
+          const parsed = parseTemplate(serialized);
+          const parsedValidation = validateTemplate(parsed);
+
+          // If original was valid, parsed should also be valid
+          expect(parsedValidation.valid).toBe(true);
+        }),
+        { numRuns: 100 }
+      );
+    });
+
+    it('round-trip works for all pre-defined templates', () => {
+      for (const [, template] of Object.entries(TEMPLATES)) {
+        const serialized = serializeTemplate(template);
+        const parsed = parseTemplate(serialized);
+
+        expect(parsed.name).toBe(template.name);
+        expect(parsed.sections).toHaveLength(template.sections.length);
+        expect(parsed.placeholders).toHaveLength(template.placeholders.length);
+
+        // Verify sections match
+        for (let i = 0; i < template.sections.length; i++) {
+          expect(parsed.sections[i].name).toBe(template.sections[i].name);
+          expect(parsed.sections[i].delimiter).toBe(template.sections[i].delimiter);
+          expect(parsed.sections[i].required).toBe(template.sections[i].required);
+          // Content comparison - trim to handle any whitespace differences
+          expect(parsed.sections[i].content.trim()).toBe(template.sections[i].content.trim());
+        }
+
+        // Verify placeholders match
+        for (let i = 0; i < template.placeholders.length; i++) {
+          expect(parsed.placeholders[i]).toEqual(template.placeholders[i]);
+        }
+      }
+    });
+
+    it('serialized format is deterministic', () => {
+      fc.assert(
+        fc.property(templateArb, (template) => {
+          const validation = validateTemplate(template);
+          fc.pre(validation.valid);
+
+          // Serialize twice
+          const serialized1 = serializeTemplate(template);
+          const serialized2 = serializeTemplate(template);
+
+          // Should produce identical output
+          expect(serialized1).toBe(serialized2);
+        }),
+        { numRuns: 100 }
+      );
     });
   });
 });

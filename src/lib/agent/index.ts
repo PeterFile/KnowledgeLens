@@ -8,6 +8,7 @@ export * from './tools';
 export * from './tool-definitions';
 export * from './state';
 export * from './context';
+export * from './reflection';
 
 // Default configuration values
 export const DEFAULT_AGENT_CONFIG = {

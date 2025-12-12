@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import * as fc from 'fast-check';
 import {
   estimateTokens,
   trackUsage,
@@ -194,6 +195,119 @@ describe('Token Tracker', () => {
         warningThreshold: 800,
       };
       expect(getRemainingBudget(usage)).toBe(0);
+    });
+  });
+});
+
+/**
+ * **Feature: agent-architecture-upgrade, Property 15: Token Budget Enforcement**
+ * **Validates: Requirements 11.4**
+ *
+ * Property: For any agent execution where token usage exceeds the configured budget,
+ * the system SHALL terminate (isBudgetExceeded returns true).
+ */
+describe('Property-Based Tests', () => {
+  describe('Property 15: Token Budget Enforcement', () => {
+    it('isBudgetExceeded returns true when total tokens >= budget', () => {
+      fc.assert(
+        fc.property(
+          // Generate budget (positive integer)
+          fc.integer({ min: 1, max: 1_000_000 }),
+          // Generate input tokens
+          fc.integer({ min: 0, max: 1_000_000 }),
+          // Generate output tokens
+          fc.integer({ min: 0, max: 1_000_000 }),
+          (budget, inputTokens, outputTokens) => {
+            const totalTokens = inputTokens + outputTokens;
+
+            const usage: TokenUsage = {
+              sessionTotal: { input: inputTokens, output: outputTokens },
+              currentOperation: { input: 0, output: 0 },
+              budget,
+              warningThreshold: Math.floor(budget * 0.8),
+            };
+
+            const exceeded = isBudgetExceeded(usage);
+
+            // Property: isBudgetExceeded returns true iff total >= budget
+            if (totalTokens >= budget) {
+              expect(exceeded).toBe(true);
+            } else {
+              expect(exceeded).toBe(false);
+            }
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('trackUsage accumulation eventually triggers budget exceeded', () => {
+      fc.assert(
+        fc.property(
+          // Generate a budget
+          fc.integer({ min: 100, max: 10_000 }),
+          // Generate a sequence of token increments
+          fc.array(
+            fc.record({
+              input: fc.integer({ min: 1, max: 500 }),
+              output: fc.integer({ min: 1, max: 500 }),
+            }),
+            { minLength: 1, maxLength: 50 }
+          ),
+          (budget, increments) => {
+            let usage = createTokenUsage(budget);
+            let totalAccumulated = 0;
+
+            for (const increment of increments) {
+              usage = trackUsage(usage, increment);
+              totalAccumulated += increment.input + increment.output;
+
+              const exceeded = isBudgetExceeded(usage);
+
+              // Property: Once total >= budget, isBudgetExceeded must be true
+              if (totalAccumulated >= budget) {
+                expect(exceeded).toBe(true);
+              }
+
+              // Property: If exceeded is true, total must be >= budget
+              if (exceeded) {
+                expect(totalAccumulated).toBeGreaterThanOrEqual(budget);
+              }
+            }
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('budget enforcement is consistent regardless of input/output distribution', () => {
+      fc.assert(
+        fc.property(
+          // Generate total tokens and budget
+          fc.integer({ min: 0, max: 100_000 }),
+          fc.integer({ min: 1, max: 100_000 }),
+          // Generate split ratio (0-100%)
+          fc.integer({ min: 0, max: 100 }),
+          (totalTokens, budget, splitPercent) => {
+            // Split total tokens between input and output
+            const inputTokens = Math.floor((totalTokens * splitPercent) / 100);
+            const outputTokens = totalTokens - inputTokens;
+
+            const usage: TokenUsage = {
+              sessionTotal: { input: inputTokens, output: outputTokens },
+              currentOperation: { input: 0, output: 0 },
+              budget,
+              warningThreshold: Math.floor(budget * 0.8),
+            };
+
+            const exceeded = isBudgetExceeded(usage);
+
+            // Property: Budget enforcement depends only on total, not distribution
+            expect(exceeded).toBe(totalTokens >= budget);
+          }
+        ),
+        { numRuns: 100 }
+      );
     });
   });
 });

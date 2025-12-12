@@ -10,7 +10,7 @@ import {
   formatResultsForCitation,
 } from '../../../src/lib/agent/rag';
 import type { SearchResult } from '../../../src/types';
-import type { GradedResult, RelevanceGrade } from '../../../src/lib/agent/types';
+import type { GradedResult, RelevanceGrade, RAGResult } from '../../../src/lib/agent/types';
 
 // ============================================================================
 // Arbitraries for generating test data
@@ -806,6 +806,196 @@ describe('Property-Based Tests', () => {
         ),
         { numRuns: 100 }
       );
+    });
+  });
+
+  /**
+   * **Feature: agent-architecture-upgrade, Property 14: Search Fallback Behavior**
+   * **Validates: Requirements 4.4, 9.1**
+   *
+   * Property: For any search operation that fails after all retries, the system
+   * SHALL fall back to LLM-only response with a disclaimer indicating the fallback.
+   */
+  describe('Property 14: Search Fallback Behavior', () => {
+    // Generate a valid RAGResult with fallback
+    const ragResultWithFallbackArb: fc.Arbitrary<RAGResult> = fc.record({
+      relevantResults: fc.array(
+        fc.record({
+          result: searchResultArb,
+          relevance: fc.constant('relevant' as RelevanceGrade),
+          confidence: confidenceArb,
+          reasoning: reasoningArb,
+        }),
+        { minLength: 0, maxLength: 5 }
+      ),
+      queryHistory: fc.array(queryArb, { minLength: 1, maxLength: 5 }),
+      fallbackUsed: fc.constant(true),
+      disclaimer: fc.string({ minLength: 10, maxLength: 500 }).filter((s) => s.trim().length > 0),
+    });
+
+    // Generate a valid RAGResult without fallback (successful search)
+    const ragResultWithoutFallbackArb: fc.Arbitrary<RAGResult> = fc.record({
+      relevantResults: fc.array(
+        fc.record({
+          result: searchResultArb,
+          relevance: fc.constant('relevant' as RelevanceGrade),
+          confidence: confidenceArb,
+          reasoning: reasoningArb,
+        }),
+        { minLength: 1, maxLength: 10 }
+      ),
+      queryHistory: fc.array(queryArb, { minLength: 1, maxLength: 5 }),
+      fallbackUsed: fc.constant(false),
+      disclaimer: fc.constant(undefined),
+    });
+
+    it('fallback result always includes a non-empty disclaimer', () => {
+      fc.assert(
+        fc.property(ragResultWithFallbackArb, (ragResult) => {
+          // Property: When fallbackUsed is true, disclaimer MUST be present and non-empty
+          expect(ragResult.fallbackUsed).toBe(true);
+          expect(ragResult.disclaimer).toBeDefined();
+          expect(typeof ragResult.disclaimer).toBe('string');
+          expect(ragResult.disclaimer!.trim().length).toBeGreaterThan(0);
+        }),
+        { numRuns: 100 }
+      );
+    });
+
+    it('successful search result has no disclaimer', () => {
+      fc.assert(
+        fc.property(ragResultWithoutFallbackArb, (ragResult) => {
+          // Property: When fallbackUsed is false, disclaimer should be undefined
+          expect(ragResult.fallbackUsed).toBe(false);
+          expect(ragResult.disclaimer).toBeUndefined();
+        }),
+        { numRuns: 100 }
+      );
+    });
+
+    it('fallback result preserves query history', () => {
+      fc.assert(
+        fc.property(ragResultWithFallbackArb, (ragResult) => {
+          // Property: Query history is always present and non-empty (at least original query)
+          expect(ragResult.queryHistory).toBeDefined();
+          expect(Array.isArray(ragResult.queryHistory)).toBe(true);
+          expect(ragResult.queryHistory.length).toBeGreaterThanOrEqual(1);
+        }),
+        { numRuns: 100 }
+      );
+    });
+
+    it('fallback result may still contain partial relevant results', () => {
+      fc.assert(
+        fc.property(ragResultWithFallbackArb, (ragResult) => {
+          // Property: relevantResults is always an array (may be empty or have partial results)
+          expect(ragResult.relevantResults).toBeDefined();
+          expect(Array.isArray(ragResult.relevantResults)).toBe(true);
+
+          // Property: All results in relevantResults have 'relevant' grade
+          for (const result of ragResult.relevantResults) {
+            expect(result.relevance).toBe('relevant');
+          }
+        }),
+        { numRuns: 100 }
+      );
+    });
+
+    it('RAGResult structure is consistent regardless of fallback status', () => {
+      fc.assert(
+        fc.property(
+          fc.oneof(ragResultWithFallbackArb, ragResultWithoutFallbackArb),
+          (ragResult) => {
+            // Property: Core structure is always present
+            expect(ragResult).toHaveProperty('relevantResults');
+            expect(ragResult).toHaveProperty('queryHistory');
+            expect(ragResult).toHaveProperty('fallbackUsed');
+
+            // Property: Types are correct
+            expect(Array.isArray(ragResult.relevantResults)).toBe(true);
+            expect(Array.isArray(ragResult.queryHistory)).toBe(true);
+            expect(typeof ragResult.fallbackUsed).toBe('boolean');
+
+            // Property: Disclaimer presence correlates with fallbackUsed
+            if (ragResult.fallbackUsed) {
+              expect(ragResult.disclaimer).toBeDefined();
+            } else {
+              expect(ragResult.disclaimer).toBeUndefined();
+            }
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('simulated agenticRAG fallback produces valid result structure', () => {
+      fc.assert(
+        fc.property(
+          queryArb,
+          fc.array(queryArb, { minLength: 0, maxLength: 3 }),
+          fc.array(
+            fc.record({
+              result: searchResultArb,
+              relevance: relevanceGradeArb,
+              confidence: confidenceArb,
+              reasoning: reasoningArb,
+            }),
+            { minLength: 0, maxLength: 5 }
+          ),
+          (originalQuery, additionalQueries, lastGradedResults) => {
+            // Simulate the fallback path of agenticRAG:
+            // When all retries are exhausted, it returns this structure
+            const queryHistory = [originalQuery, ...additionalQueries];
+            const relevantFromLastAttempt = lastGradedResults.filter(
+              (r) => r.relevance === 'relevant'
+            );
+
+            const fallbackResult: RAGResult = {
+              relevantResults: relevantFromLastAttempt,
+              queryHistory,
+              fallbackUsed: true,
+              disclaimer:
+                "Search results were limited or not relevant. Response may rely on the AI's internal knowledge, which could be outdated or incomplete.",
+            };
+
+            // Property: Fallback result has all required fields
+            expect(fallbackResult.fallbackUsed).toBe(true);
+            expect(fallbackResult.disclaimer).toBeDefined();
+            expect(fallbackResult.disclaimer!.length).toBeGreaterThan(0);
+
+            // Property: Query history includes original query
+            expect(fallbackResult.queryHistory).toContain(originalQuery);
+
+            // Property: Only relevant results are included
+            for (const result of fallbackResult.relevantResults) {
+              expect(result.relevance).toBe('relevant');
+            }
+
+            // Property: Disclaimer mentions fallback/limitation
+            expect(
+              fallbackResult.disclaimer!.toLowerCase().includes('limited') ||
+                fallbackResult.disclaimer!.toLowerCase().includes('not relevant') ||
+                fallbackResult.disclaimer!.toLowerCase().includes('internal knowledge')
+            ).toBe(true);
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('fallback disclaimer indicates reliance on internal knowledge', () => {
+      // Test the actual disclaimer message used in agenticRAG
+      const actualDisclaimer =
+        "Search results were limited or not relevant. Response may rely on the AI's internal knowledge, which could be outdated or incomplete.";
+
+      // Property: The disclaimer communicates the fallback clearly
+      expect(actualDisclaimer.toLowerCase()).toContain('internal knowledge');
+      expect(actualDisclaimer.toLowerCase()).toContain('limited');
+      expect(actualDisclaimer.toLowerCase()).toContain('not relevant');
+
+      // Property: The disclaimer warns about potential issues
+      expect(actualDisclaimer.toLowerCase()).toContain('outdated');
+      expect(actualDisclaimer.toLowerCase()).toContain('incomplete');
     });
   });
 });

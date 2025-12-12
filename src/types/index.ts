@@ -49,7 +49,10 @@ export type ExtensionMessage =
   | { action: 'capture_screenshot'; payload: CaptureScreenshotPayload }
   | { action: 'extract_screenshot'; payload: ExtractScreenshotPayload }
   | { action: 'generate_note_card'; payload: NoteCardPayload }
-  | { action: 'cancel_request'; payload: CancelRequestPayload };
+  | { action: 'cancel_request'; payload: CancelRequestPayload }
+  | { action: 'agent_execute'; payload: AgentExecutePayload }
+  | { action: 'agent_cancel'; payload: AgentCancelPayload }
+  | { action: 'agent_get_status'; payload: AgentGetStatusPayload };
 
 export interface SummarizePayload {
   content: string;
@@ -87,6 +90,21 @@ export interface CancelRequestPayload {
   requestId: string;
 }
 
+// Agent Operation Payloads
+export interface AgentExecutePayload {
+  goal: string;
+  sessionId?: string; // Optional: resume existing session
+  context?: string; // Optional: additional context for the goal
+}
+
+export interface AgentCancelPayload {
+  sessionId: string;
+}
+
+export interface AgentGetStatusPayload {
+  sessionId: string;
+}
+
 // Screenshot Types
 export interface ScreenshotRegion {
   x: number;
@@ -116,6 +134,21 @@ export interface StreamingMessage {
   chunk?: string;
   content?: string;
   error?: string;
+}
+
+// Agent status message sent from background to popup/content script
+export interface AgentStatusMessage {
+  type: 'agent_status_update' | 'agent_complete' | 'agent_error';
+  sessionId: string;
+  phase?: 'thinking' | 'executing' | 'analyzing' | 'reflecting' | 'synthesizing' | 'idle';
+  stepNumber?: number;
+  maxSteps?: number;
+  tokenUsage?: { input: number; output: number };
+  currentTool?: string;
+  result?: string;
+  error?: string;
+  degradedMode?: boolean;
+  degradedReason?: string;
 }
 
 // Selection Data

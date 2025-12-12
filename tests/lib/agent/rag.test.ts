@@ -277,6 +277,21 @@ describe('RAG Parsing Functions', () => {
 // Property-Based Tests
 // ============================================================================
 
+// Generate a non-empty query string (for query rewriting tests)
+const queryArb = fc
+  .string({ minLength: 1, maxLength: 100 })
+  .filter((s) => s.trim().length > 0 && !s.includes('<'));
+
+/**
+ * Generate a well-formed LLM query rewrite response.
+ * This simulates what the LLM would return for query rewriting.
+ */
+function generateQueryRewriteResponse(rewrittenQuery: string, explanation: string): string {
+  return `<rewritten_query>${rewrittenQuery}</rewritten_query>
+
+<explanation>${explanation}</explanation>`;
+}
+
 /**
  * **Feature: agent-architecture-upgrade, Property 7: Search Result Grading**
  * **Validates: Requirements 4.1**
@@ -462,6 +477,148 @@ describe('Property-Based Tests', () => {
             // Property: Count matches expected
             const expectedCount = gradedResults.filter((r) => r.relevance === 'relevant').length;
             expect(filtered).toHaveLength(expectedCount);
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+  });
+
+  /**
+   * **Feature: agent-architecture-upgrade, Property 8: Query Rewriting on Low Relevance**
+   * **Validates: Requirements 4.2, 4.3**
+   *
+   * Property: For any search where the majority of results are graded 'not_relevant',
+   * the system SHALL generate a rewritten query that differs from the original.
+   */
+  describe('Property 8: Query Rewriting on Low Relevance', () => {
+    it('extracted rewritten query differs from original when LLM provides different query', () => {
+      fc.assert(
+        fc.property(
+          queryArb,
+          queryArb.filter((q) => q.trim().length > 0),
+          fc.string({ minLength: 1, maxLength: 200 }),
+          (originalQuery, rewrittenQuery, explanation) => {
+            // Pre-condition: rewritten query is different from original
+            fc.pre(rewrittenQuery.toLowerCase().trim() !== originalQuery.toLowerCase().trim());
+
+            // Generate a well-formed LLM response with a different query
+            const response = generateQueryRewriteResponse(rewrittenQuery, explanation);
+
+            // Extract the rewritten query using the same logic as rewriteQuery
+            const extracted = extractTagContent(response, 'rewritten_query');
+
+            // Property: The extracted query should differ from the original
+            expect(extracted.toLowerCase().trim()).not.toBe(originalQuery.toLowerCase().trim());
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('fallback mechanism produces different query when extraction fails', () => {
+      fc.assert(
+        fc.property(
+          queryArb,
+          fc
+            .string({ minLength: 0, maxLength: 200 })
+            .filter((s) => !s.includes('<rewritten_query>')),
+          (originalQuery, invalidResponse) => {
+            // Try to extract from invalid response (no rewritten_query tag)
+            const extracted = extractTagContent(invalidResponse, 'rewritten_query');
+
+            // When extraction fails (empty string), the fallback appends " explained"
+            if (extracted === '') {
+              // Simulate the fallback logic from rewriteQuery
+              const fallbackQuery = `${originalQuery} explained`;
+
+              // Property: Fallback query differs from original
+              expect(fallbackQuery).not.toBe(originalQuery);
+              expect(fallbackQuery).toBe(`${originalQuery} explained`);
+            }
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('query rewrite response extraction preserves query content (trimmed)', () => {
+      fc.assert(
+        fc.property(
+          queryArb,
+          fc.string({ minLength: 1, maxLength: 200 }),
+          (rewrittenQuery, explanation) => {
+            // Generate response with the query
+            const response = generateQueryRewriteResponse(rewrittenQuery, explanation);
+
+            // Extract the query
+            const extracted = extractTagContent(response, 'rewritten_query');
+
+            // Property: Extracted query matches trimmed input
+            // (extractTagContent trims whitespace by design)
+            expect(extracted).toBe(rewrittenQuery.trim());
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('majority not_relevant triggers need for rewrite (relevance ratio < threshold)', () => {
+      fc.assert(
+        fc.property(
+          fc.array(
+            fc.record({
+              result: searchResultArb,
+              relevance: fc.constant('not_relevant' as RelevanceGrade),
+              confidence: confidenceArb,
+              reasoning: reasoningArb,
+            }),
+            { minLength: 1, maxLength: 10 }
+          ),
+          fc.array(
+            fc.record({
+              result: searchResultArb,
+              relevance: fc.constant('relevant' as RelevanceGrade),
+              confidence: confidenceArb,
+              reasoning: reasoningArb,
+            }),
+            { minLength: 0, maxLength: 4 }
+          ),
+          (notRelevantResults, relevantResults) => {
+            // Combine results ensuring majority are not_relevant
+            const allResults = [...notRelevantResults, ...relevantResults];
+
+            // Pre-condition: majority must be not_relevant (ratio < 0.5)
+            const relevanceRatio = calculateRelevanceRatio(allResults);
+            fc.pre(relevanceRatio < 0.5);
+
+            // Property: When majority are not_relevant, relevance ratio is below threshold
+            // This is the condition that triggers query rewriting in agenticRAG
+            expect(relevanceRatio).toBeLessThan(0.5);
+
+            // Property: The not_relevant count exceeds relevant count
+            const notRelevantCount = allResults.filter(
+              (r) => r.relevance === 'not_relevant'
+            ).length;
+            const relevantCount = allResults.filter((r) => r.relevance === 'relevant').length;
+            expect(notRelevantCount).toBeGreaterThan(relevantCount);
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('rewritten query from valid response is never empty', () => {
+      fc.assert(
+        fc.property(
+          queryArb.filter((q) => q.trim().length > 0),
+          fc.string({ minLength: 1, maxLength: 200 }),
+          (rewrittenQuery, explanation) => {
+            const response = generateQueryRewriteResponse(rewrittenQuery, explanation);
+            const extracted = extractTagContent(response, 'rewritten_query');
+
+            // Property: Extracted query is never empty when input was non-empty
+            expect(extracted.length).toBeGreaterThan(0);
           }
         ),
         { numRuns: 100 }

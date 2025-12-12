@@ -94,8 +94,9 @@ export async function gradeResults(
 /**
  * Parse the LLM grading response into GradedResult objects.
  * Uses flexible regex to handle LLM output variations (single/double quotes, spaces).
+ * Exported for testing purposes.
  */
-function parseGradingResponse(response: string, results: SearchResult[]): GradedResult[] {
+export function parseGradingResponse(response: string, results: SearchResult[]): GradedResult[] {
   const gradedResults: GradedResult[] = [];
 
   // Flexible regex to handle LLM output variations:
@@ -137,18 +138,21 @@ function parseGradingResponse(response: string, results: SearchResult[]): Graded
   return gradedResults;
 }
 
-function extractTagContent(text: string, tagName: string): string {
+/** Extract content from XML-like tags. Exported for testing. */
+export function extractTagContent(text: string, tagName: string): string {
   const pattern = new RegExp(`<${tagName}>([\\s\\S]*?)<\\/${tagName}>`, 'i');
   const match = text.match(pattern);
   return match ? match[1].trim() : '';
 }
 
-function parseRelevance(value: string): RelevanceGrade {
+/** Parse relevance string to RelevanceGrade. Exported for testing. */
+export function parseRelevance(value: string): RelevanceGrade {
   const normalized = value.toUpperCase().trim();
   return normalized === 'NOT_RELEVANT' ? 'not_relevant' : 'relevant';
 }
 
-function parseConfidence(value: string): number {
+/** Parse confidence string to number [0, 1]. Exported for testing. */
+export function parseConfidence(value: string): number {
   const parsed = parseFloat(value);
   if (isNaN(parsed)) return 0.5;
   return Math.max(0, Math.min(1, parsed));

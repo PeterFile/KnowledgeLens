@@ -6,7 +6,7 @@ import type { SelectionData, ScreenshotRegion, ScreenshotResult } from '../types
 import { getShadowContainer, destroyShadowContainer } from './shadow-container';
 import { startSelectionListener, stopSelectionListener } from './selection';
 import { FloatingBubble } from './FloatingBubble';
-import { Sidebar } from './Sidebar';
+import { FloatingPanel } from './FloatingPanel';
 import { ScreenshotOverlay } from './ScreenshotOverlay';
 import { ProcessingPanel } from './ProcessingPanel';
 
@@ -14,7 +14,7 @@ console.log('KnowledgeLens content script loaded');
 
 // Container IDs
 const BUBBLE_CONTAINER_ID = 'knowledgelens-bubble';
-const SIDEBAR_CONTAINER_ID = 'knowledgelens-sidebar';
+const PANEL_CONTAINER_ID = 'knowledgelens-panel';
 const SCREENSHOT_OVERLAY_ID = 'knowledgelens-screenshot-overlay';
 const PROCESSING_PANEL_ID = 'knowledgelens-processing-panel';
 
@@ -44,30 +44,30 @@ function hideBubble(): void {
 }
 
 /**
- * Show the sidebar with AI response.
+ * Show the floating panel with AI response.
  */
-function showSidebar(mode: 'explain' | 'search'): void {
+function showPanel(mode: 'explain' | 'search'): void {
   if (!currentSelection) return;
 
   sidebarMode = mode;
   hideBubble();
 
-  const container = getShadowContainer(SIDEBAR_CONTAINER_ID);
+  const container = getShadowContainer(PANEL_CONTAINER_ID);
   container.render(
-    <Sidebar
+    <FloatingPanel
       selectedText={currentSelection.text}
       context={currentSelection.context}
       mode={mode}
-      onClose={hideSidebar}
+      onClose={hidePanel}
     />
   );
 }
 
 /**
- * Hide the sidebar.
+ * Hide the floating panel.
  */
-function hideSidebar(): void {
-  destroyShadowContainer(SIDEBAR_CONTAINER_ID);
+function hidePanel(): void {
+  destroyShadowContainer(PANEL_CONTAINER_ID);
   sidebarMode = null;
 }
 
@@ -75,14 +75,14 @@ function hideSidebar(): void {
  * Handle explain button click.
  */
 function handleExplain(): void {
-  showSidebar('explain');
+  showPanel('explain');
 }
 
 /**
  * Handle search button click.
  */
 function handleSearch(): void {
-  showSidebar('search');
+  showPanel('search');
 }
 
 /**
@@ -107,7 +107,7 @@ function handleSelectionChange(selection: SelectionData | null): void {
  */
 function showScreenshotOverlay(): void {
   hideBubble();
-  hideSidebar();
+  hidePanel();
 
   const container = getShadowContainer(SCREENSHOT_OVERLAY_ID);
   container.render(
@@ -189,20 +189,20 @@ function handleDocumentClick(event: MouseEvent): void {
 
   // Check if click is inside shadow DOM containers
   const bubbleHost = document.getElementById(BUBBLE_CONTAINER_ID);
-  const sidebarHost = document.getElementById(SIDEBAR_CONTAINER_ID);
+  const panelHost = document.getElementById(PANEL_CONTAINER_ID);
   const processingHost = document.getElementById(PROCESSING_PANEL_ID);
 
   if (
     bubbleHost?.contains(target) ||
-    sidebarHost?.contains(target) ||
+    panelHost?.contains(target) ||
     processingHost?.contains(target)
   ) {
     return;
   }
 
-  // Close sidebar if open and clicking outside
+  // Close panel if open and clicking outside
   if (sidebarMode) {
-    hideSidebar();
+    hidePanel();
   }
 }
 
@@ -235,7 +235,7 @@ function cleanup(): void {
   document.removeEventListener('click', handleDocumentClick);
   chrome.runtime.onMessage.removeListener(handleExtensionMessage);
   hideBubble();
-  hideSidebar();
+  hidePanel();
   hideScreenshotOverlay();
   hideProcessingPanel();
 }

@@ -3,6 +3,7 @@
 
 export * from './types';
 export * from './tokens';
+export * from './prompts';
 
 // Default configuration values
 export const DEFAULT_AGENT_CONFIG = {

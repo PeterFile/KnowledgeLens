@@ -128,13 +128,20 @@ Analyze this failure and suggest a fix:`,
 
 /**
  * Parse the LLM response to extract analysis and suggested fix.
+ * Handles various LLM output formats including markdown formatting.
  */
 function parseReflectionResponse(
   response: string,
   fallbackError: string
 ): { analysis: string; suggestedFix: string } {
-  const analysisMatch = response.match(/ANALYSIS:\s*(.+?)(?=SUGGESTED_FIX:|$)/is);
-  const fixMatch = response.match(/SUGGESTED_FIX:\s*(.+?)$/is);
+  // Flexible regex to handle markdown formatting (**, ##, etc.)
+  // Matches: ANALYSIS:, **ANALYSIS:**, ## ANALYSIS:, etc.
+  const analysisMatch = response.match(
+    /(?:\*\*|#{1,3})?\s*ANALYSIS\s*(?:\*\*|#{1,3})?:\s*(.+?)(?=(?:\*\*|#{1,3})?\s*SUGGESTED_FIX|$)/is
+  );
+  const fixMatch = response.match(
+    /(?:\*\*|#{1,3})?\s*SUGGESTED_FIX\s*(?:\*\*|#{1,3})?:\s*(.+?)$/is
+  );
 
   return {
     analysis: analysisMatch?.[1]?.trim() || `Action failed with error: ${fallbackError}`,
@@ -168,22 +175,68 @@ export function storeReflection(memory: EpisodicMemory, reflection: Reflection):
  * Requirements: 3.3 - Include relevant reflections from previous failures in context
  */
 export function getRelevantReflections(action: ToolCall, memory: EpisodicMemory): Reflection[] {
-  // Find reflections related to the same tool or similar error patterns
+  // Find reflections related to the same tool or similar parameters
   return memory.reflections.filter((reflection) => {
-    // Same tool
+    // Same tool - always relevant
     if (reflection.failedAction.name === action.name) {
       return true;
     }
 
-    // Similar parameters (e.g., same query pattern)
-    const actionParams = JSON.stringify(action.parameters);
-    const reflectionParams = JSON.stringify(reflection.failedAction.parameters);
-    if (actionParams === reflectionParams) {
+    // Similar parameters using fuzzy matching
+    if (hasOverlappingParameters(action.parameters, reflection.failedAction.parameters)) {
       return true;
     }
 
     return false;
   });
+}
+
+/**
+ * Check if two parameter objects have overlapping key parameters.
+ * Uses fuzzy matching: considers parameters similar if key values match
+ * (ignoring key order, extra whitespace, and minor differences).
+ */
+function hasOverlappingParameters(
+  params1: Record<string, unknown>,
+  params2: Record<string, unknown>
+): boolean {
+  const keys1 = Object.keys(params1);
+  const keys2 = Object.keys(params2);
+
+  // Find common keys
+  const commonKeys = keys1.filter((k) => keys2.includes(k));
+  if (commonKeys.length === 0) {
+    return false;
+  }
+
+  // Check if at least one common key has a similar value
+  return commonKeys.some((key) => {
+    const val1 = params1[key];
+    const val2 = params2[key];
+    return areValuesSimilar(val1, val2);
+  });
+}
+
+/**
+ * Compare two values with fuzzy matching.
+ * For strings: normalizes whitespace and compares case-insensitively.
+ * For other types: uses strict equality.
+ */
+function areValuesSimilar(val1: unknown, val2: unknown): boolean {
+  // Both strings - normalize and compare
+  if (typeof val1 === 'string' && typeof val2 === 'string') {
+    const normalized1 = val1.trim().toLowerCase().replace(/\s+/g, ' ');
+    const normalized2 = val2.trim().toLowerCase().replace(/\s+/g, ' ');
+    return normalized1 === normalized2;
+  }
+
+  // Both arrays - check if they have overlapping elements
+  if (Array.isArray(val1) && Array.isArray(val2)) {
+    return val1.some((v) => val2.includes(v));
+  }
+
+  // Strict equality for other types
+  return val1 === val2;
 }
 
 /**

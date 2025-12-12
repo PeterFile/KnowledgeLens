@@ -222,6 +222,57 @@ describe('Reflection Manager', () => {
       const relevant = getRelevantReflections(action, memory);
       expect(relevant).toHaveLength(0);
     });
+
+    // Fuzzy matching tests
+    it('matches parameters with different key order', () => {
+      // Add reflection with specific key order
+      const reflection: Reflection = {
+        id: 'ref-order',
+        timestamp: Date.now(),
+        errorType: 'error:other_tool',
+        failedAction: {
+          name: 'other_tool',
+          parameters: { q: 'foo', k: 5 },
+          reasoning: 'Testing',
+        },
+        analysis: 'Failed',
+        suggestedFix: 'Fix it',
+        applied: false,
+      };
+      memory = storeReflection(memory, reflection);
+
+      // Action with same values but different key order
+      const action: ToolCall = {
+        name: 'different_tool',
+        parameters: { k: 5, q: 'foo' },
+        reasoning: 'Testing',
+      };
+
+      const relevant = getRelevantReflections(action, memory);
+      expect(relevant.some((r) => r.id === 'ref-order')).toBe(true);
+    });
+
+    it('matches parameters with extra whitespace in strings', () => {
+      const action: ToolCall = {
+        name: 'different_tool',
+        parameters: { query: '  test   query  ' },
+        reasoning: 'Testing with whitespace',
+      };
+
+      const relevant = getRelevantReflections(action, memory);
+      expect(relevant.some((r) => r.id === 'ref-1')).toBe(true);
+    });
+
+    it('matches parameters case-insensitively', () => {
+      const action: ToolCall = {
+        name: 'different_tool',
+        parameters: { query: 'TEST QUERY' },
+        reasoning: 'Testing with uppercase',
+      };
+
+      const relevant = getRelevantReflections(action, memory);
+      expect(relevant.some((r) => r.id === 'ref-1')).toBe(true);
+    });
   });
 
   // ============================================================================

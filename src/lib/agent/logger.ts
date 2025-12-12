@@ -3,6 +3,11 @@
 
 import type { TrajectoryLog, LogEntry, LogEntryType, ToolCall, ToolResult } from './types';
 
+// Maximum number of log entries to prevent unbounded growth
+// With maxSteps=5 and ~4 entries per step, normal usage is ~20 entries
+// 200 provides ample headroom while preventing storage quota issues
+const MAX_LOG_ENTRIES = 200;
+
 /**
  * Creates a new trajectory log for tracking agent execution
  */
@@ -29,7 +34,12 @@ export function logStep(log: TrajectoryLog, entry: Omit<LogEntry, 'timestamp'>):
     timestamp: Date.now(),
   };
 
-  const updatedEntries = [...log.entries, newEntry];
+  let updatedEntries = [...log.entries, newEntry];
+
+  // Truncate oldest entries if exceeding limit to prevent unbounded growth
+  if (updatedEntries.length > MAX_LOG_ENTRIES) {
+    updatedEntries = updatedEntries.slice(-MAX_LOG_ENTRIES);
+  }
 
   // Update metrics based on entry type
   const updatedMetrics = { ...log.metrics };

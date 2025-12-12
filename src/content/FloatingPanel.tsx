@@ -1,5 +1,4 @@
-// Draggable floating panel for displaying AI responses with Markdown support
-// Replaces Sidebar component with a movable, resizable panel
+// Draggable and resizable floating panel for AI responses with Markdown support
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -15,15 +14,15 @@ interface FloatingPanelProps {
   onClose: () => void;
 }
 
-// Close icon
+// Icons
 const CloseIcon = () => (
   <svg
-    width="18"
-    height="18"
+    width="16"
+    height="16"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
+    strokeWidth="2.5"
     strokeLinecap="round"
     strokeLinejoin="round"
   >
@@ -32,7 +31,6 @@ const CloseIcon = () => (
   </svg>
 );
 
-// Copy icon
 const CopyIcon = () => (
   <svg
     width="14"
@@ -44,12 +42,11 @@ const CopyIcon = () => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+    <rect width="14" height="14" x="8" y="8" rx="2" />
     <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
   </svg>
 );
 
-// Retry icon
 const RetryIcon = () => (
   <svg
     width="14"
@@ -68,38 +65,52 @@ const RetryIcon = () => (
   </svg>
 );
 
-// Drag handle icon
-const DragIcon = () => (
+const MinimizeIcon = () => (
   <svg
     width="16"
     height="16"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
+    strokeWidth="2.5"
     strokeLinecap="round"
-    strokeLinejoin="round"
   >
-    <circle cx="9" cy="5" r="1" fill="currentColor" />
-    <circle cx="9" cy="12" r="1" fill="currentColor" />
-    <circle cx="9" cy="19" r="1" fill="currentColor" />
-    <circle cx="15" cy="5" r="1" fill="currentColor" />
-    <circle cx="15" cy="12" r="1" fill="currentColor" />
-    <circle cx="15" cy="19" r="1" fill="currentColor" />
+    <path d="M5 12h14" />
   </svg>
 );
 
-// Skeleton loader
+const ExpandIcon = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+  >
+    <path d="M12 5v14" />
+    <path d="M5 12h14" />
+  </svg>
+);
+
 const SkeletonLoader = () => (
-  <div className="p-4 animate-pulse">
-    <div className="h-4 bg-gray-200 rounded w-3/4 mb-3" />
-    <div className="h-4 bg-gray-200 rounded w-full mb-3" />
-    <div className="h-4 bg-gray-200 rounded w-5/6 mb-3" />
+  <div className="animate-pulse space-y-4 p-1">
+    <div className="h-4 bg-gray-200 rounded w-4/5" />
+    <div className="space-y-2">
+      <div className="h-3 bg-gray-200 rounded w-full" />
+      <div className="h-3 bg-gray-200 rounded w-11/12" />
+      <div className="h-3 bg-gray-200 rounded w-3/4" />
+    </div>
     <div className="h-4 bg-gray-200 rounded w-2/3" />
+    <div className="space-y-2">
+      <div className="h-3 bg-gray-200 rounded w-full" />
+      <div className="h-3 bg-gray-200 rounded w-5/6" />
+    </div>
   </div>
 );
 
-// Custom hook for dragging
+// Drag hook
 function useDrag(initialPos: { x: number; y: number }) {
   const [position, setPosition] = useState(initialPos);
   const [isDragging, setIsDragging] = useState(false);
@@ -108,34 +119,73 @@ function useDrag(initialPos: { x: number; y: number }) {
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       setIsDragging(true);
-      dragOffset.current = {
-        x: e.clientX - position.x,
-        y: e.clientY - position.y,
-      };
+      dragOffset.current = { x: e.clientX - position.x, y: e.clientY - position.y };
     },
     [position]
   );
 
   useEffect(() => {
     if (!isDragging) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const newX = Math.max(0, Math.min(window.innerWidth - 100, e.clientX - dragOffset.current.x));
-      const newY = Math.max(0, Math.min(window.innerHeight - 50, e.clientY - dragOffset.current.y));
-      setPosition({ x: newX, y: newY });
+    const handleMove = (e: MouseEvent) => {
+      setPosition({
+        x: Math.max(0, Math.min(window.innerWidth - 100, e.clientX - dragOffset.current.x)),
+        y: Math.max(0, Math.min(window.innerHeight - 50, e.clientY - dragOffset.current.y)),
+      });
     };
-
-    const handleMouseUp = () => setIsDragging(false);
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    const handleUp = () => setIsDragging(false);
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleUp);
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleUp);
     };
   }, [isDragging]);
 
   return { position, isDragging, handleMouseDown };
+}
+
+// Resize hook
+function useResize(
+  initialSize: { width: number; height: number },
+  minSize = { width: 320, height: 200 }
+) {
+  const [size, setSize] = useState(initialSize);
+  const [isResizing, setIsResizing] = useState(false);
+  const startInfo = useRef({ x: 0, y: 0, width: 0, height: 0 });
+
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsResizing(true);
+      startInfo.current = { x: e.clientX, y: e.clientY, width: size.width, height: size.height };
+    },
+    [size]
+  );
+
+  useEffect(() => {
+    if (!isResizing) return;
+    const handleMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - startInfo.current.x;
+      const deltaY = e.clientY - startInfo.current.y;
+      setSize({
+        width: Math.max(minSize.width, Math.min(800, startInfo.current.width + deltaX)),
+        height: Math.max(
+          minSize.height,
+          Math.min(window.innerHeight - 40, startInfo.current.height + deltaY)
+        ),
+      });
+    };
+    const handleUp = () => setIsResizing(false);
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleUp);
+    };
+  }, [isResizing, minSize.width, minSize.height]);
+
+  return { size, isResizing, handleResizeStart };
 }
 
 export function FloatingPanel({ selectedText, context, mode, onClose }: FloatingPanelProps) {
@@ -146,22 +196,19 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
-  // Initial position: center-right of viewport
   const { position, isDragging, handleMouseDown } = useDrag({
-    x: Math.max(20, window.innerWidth - 420),
-    y: Math.max(20, (window.innerHeight - 400) / 2),
+    x: Math.max(20, window.innerWidth - 480),
+    y: Math.max(20, (window.innerHeight - 450) / 2),
   });
 
-  // Send request to background
+  const { size, isResizing, handleResizeStart } = useResize({ width: 440, height: 420 });
+
   const sendRequest = useCallback(() => {
     setStatus('loading');
     setContent('');
     setError(null);
-
     const action = mode === 'search' ? 'search_enhance' : 'explain_text';
-    const payload = { text: selectedText, context };
-
-    chrome.runtime.sendMessage({ action, payload }, (response) => {
+    chrome.runtime.sendMessage({ action, payload: { text: selectedText, context } }, (response) => {
       if (response?.success && response.data?.requestId) {
         setRequestId(response.data.requestId);
       } else if (response?.error) {
@@ -171,20 +218,16 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
     });
   }, [mode, selectedText, context]);
 
-  // Handle streaming messages
   useEffect(() => {
     const handleMessage = (message: StreamingMessage) => {
       if (!requestId || message.requestId !== requestId) return;
-
       switch (message.type) {
         case 'streaming_start':
           setStatus('streaming');
           setContent('');
           break;
         case 'streaming_chunk':
-          if (message.chunk) {
-            setContent((prev) => prev + message.chunk);
-          }
+          if (message.chunk) setContent((prev) => prev + message.chunk);
           break;
         case 'streaming_end':
           setStatus('done');
@@ -195,17 +238,15 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
           break;
       }
     };
-
     chrome.runtime.onMessage.addListener(handleMessage);
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
   }, [requestId]);
 
-  // Initial request
+  // Initial request on mount
   useEffect(() => {
     sendRequest();
   }, [sendRequest]);
 
-  // Cancel request on unmount
   useEffect(() => {
     return () => {
       if (requestId) {
@@ -221,56 +262,72 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      /* Clipboard API might fail */
+      // Clipboard API might fail in some contexts
     }
   };
 
   const title = mode === 'search' ? 'Search & Explain' : 'AI Explanation';
+  const isInteracting = isDragging || isResizing;
 
   return (
     <div
       data-knowledgelens="floating-panel"
-      className="fixed bg-white rounded-xl shadow-2xl flex flex-col font-sans border border-gray-200 overflow-hidden"
+      className="fixed flex flex-col font-sans overflow-hidden"
       style={{
         left: position.x,
         top: position.y,
-        width: collapsed ? 280 : 380,
+        width: collapsed ? 280 : size.width,
+        height: collapsed ? 'auto' : size.height,
         maxWidth: 'calc(100vw - 40px)',
-        maxHeight: collapsed ? 'auto' : 'min(500px, calc(100vh - 40px))',
+        maxHeight: 'calc(100vh - 40px)',
         zIndex: 999998,
-        cursor: isDragging ? 'grabbing' : 'auto',
-        userSelect: isDragging ? 'none' : 'auto',
+        userSelect: isInteracting ? 'none' : 'auto',
+        borderRadius: 12,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1)',
+        background: '#ffffff',
+        border: '1px solid #e5e7eb',
       }}
     >
-      {/* Header - draggable */}
+      {/* Header */}
       <div
-        className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white cursor-grab active:cursor-grabbing select-none"
+        className="flex items-center justify-between px-3 py-2.5 select-none shrink-0"
+        style={{
+          background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+          cursor: isDragging ? 'grabbing' : 'grab',
+          borderRadius: '11px 11px 0 0',
+        }}
         onMouseDown={handleMouseDown}
       >
-        <div className="flex items-center gap-2">
-          <DragIcon />
-          <span className="text-sm font-medium">{title}</span>
+        <div className="flex items-center gap-2 text-white">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z" />
+          </svg>
+          <span className="text-sm font-semibold tracking-wide">{title}</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="p-1.5 rounded hover:bg-white/20 transition border-0 bg-transparent text-white cursor-pointer"
-            title={collapsed ? 'Expand' : 'Collapse'}
+            className="w-7 h-7 rounded-md flex items-center justify-center transition-colors border-0 cursor-pointer"
+            style={{ background: 'rgba(255,255,255,0.15)', color: 'white' }}
+            onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
+            onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
+            title={collapsed ? 'Expand' : 'Minimize'}
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              {collapsed ? <path d="m6 9 6 6 6-6" /> : <path d="m18 15-6-6-6 6" />}
-            </svg>
+            {collapsed ? <ExpandIcon /> : <MinimizeIcon />}
           </button>
           <button
             onClick={onClose}
-            className="p-1.5 rounded hover:bg-white/20 transition border-0 bg-transparent text-white cursor-pointer"
+            className="w-7 h-7 rounded-md flex items-center justify-center transition-colors border-0 cursor-pointer"
+            style={{ background: 'rgba(255,255,255,0.15)', color: 'white' }}
+            onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(239,68,68,0.9)')}
+            onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
             title="Close"
           >
             <CloseIcon />
@@ -280,38 +337,64 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
 
       {!collapsed && (
         <>
-          {/* Selected text preview */}
-          <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
-            <p className="text-xs text-gray-500 mb-0.5">Selected:</p>
-            <p className="text-xs text-gray-700 line-clamp-2">{selectedText}</p>
+          {/* Selected text */}
+          <div
+            className="px-4 py-2.5 border-b shrink-0"
+            style={{ background: '#f8fafc', borderColor: '#e2e8f0' }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: '#64748b' }}>
+              Selected text:
+            </p>
+            <p className="text-sm leading-relaxed line-clamp-2" style={{ color: '#334155' }}>
+              {selectedText}
+            </p>
           </div>
 
-          {/* Content area with Markdown */}
-          <div className="flex-1 overflow-y-auto min-h-0 p-3">
+          {/* Content */}
+          <div
+            className="flex-1 overflow-y-auto min-h-0 px-5 py-4"
+            style={{ background: '#ffffff' }}
+          >
             {status === 'loading' && <SkeletonLoader />}
 
             {(status === 'streaming' || status === 'done') && (
-              <div className="prose prose-sm max-w-none text-gray-700 prose-headings:text-gray-800 prose-a:text-blue-600 prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-pre:bg-gray-900 prose-pre:text-gray-100">
+              <article className="markdown-content">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
                 {status === 'streaming' && (
-                  <span className="inline-block w-2 h-4 bg-blue-500 ml-1 animate-pulse align-middle" />
+                  <span
+                    className="inline-block w-2 h-5 ml-0.5 animate-pulse align-text-bottom"
+                    style={{ background: '#3b82f6' }}
+                  />
                 )}
-              </div>
+              </article>
             )}
 
             {status === 'error' && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-700">{error}</p>
+              <div
+                className="p-4 rounded-lg"
+                style={{ background: '#fef2f2', border: '1px solid #fecaca' }}
+              >
+                <p className="text-sm" style={{ color: '#dc2626' }}>
+                  {error}
+                </p>
               </div>
             )}
           </div>
 
-          {/* Action bar */}
-          <div className="px-3 py-2 border-t border-gray-100 flex items-center gap-2 bg-gray-50">
+          {/* Footer */}
+          <div
+            className="px-4 py-2.5 border-t flex items-center gap-2 shrink-0"
+            style={{ background: '#f8fafc', borderColor: '#e2e8f0' }}
+          >
             <button
               onClick={sendRequest}
               disabled={status === 'loading' || status === 'streaming'}
-              className="px-2.5 py-1.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: '#e2e8f0', color: '#475569' }}
+              onMouseOver={(e) =>
+                !e.currentTarget.disabled && (e.currentTarget.style.background = '#cbd5e1')
+              }
+              onMouseOut={(e) => (e.currentTarget.style.background = '#e2e8f0')}
             >
               <RetryIcon />
               <span>Retry</span>
@@ -319,12 +402,24 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
             <button
               onClick={handleCopy}
               disabled={!content}
-              className="px-2.5 py-1.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: '#e2e8f0', color: '#475569' }}
+              onMouseOver={(e) =>
+                !e.currentTarget.disabled && (e.currentTarget.style.background = '#cbd5e1')
+              }
+              onMouseOut={(e) => (e.currentTarget.style.background = '#e2e8f0')}
             >
               <CopyIcon />
               <span>{copied ? 'Copied!' : 'Copy'}</span>
             </button>
           </div>
+
+          {/* Resize handle */}
+          <div
+            className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
+            style={{ background: 'linear-gradient(135deg, transparent 50%, #cbd5e1 50%)' }}
+            onMouseDown={handleResizeStart}
+          />
         </>
       )}
     </div>

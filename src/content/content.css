@@ -1,1 +1,169 @@
 /* Content script styles for KnowledgeLens */
+
+/* Markdown content styling for FloatingPanel */
+.markdown-content {
+  font-size: 14px;
+  line-height: 1.75;
+  color: #374151;
+}
+
+.markdown-content > *:first-child {
+  margin-top: 0;
+}
+
+.markdown-content > *:last-child {
+  margin-bottom: 0;
+}
+
+/* Headings */
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4 {
+  font-weight: 600;
+  color: #111827;
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
+  line-height: 1.4;
+}
+
+.markdown-content h1 {
+  font-size: 1.5em;
+}
+.markdown-content h2 {
+  font-size: 1.25em;
+}
+.markdown-content h3 {
+  font-size: 1.1em;
+}
+.markdown-content h4 {
+  font-size: 1em;
+}
+
+/* Paragraphs */
+.markdown-content p {
+  margin: 0.875em 0;
+}
+
+/* Lists */
+.markdown-content ul,
+.markdown-content ol {
+  margin: 0.875em 0;
+  padding-left: 1.5em;
+}
+
+.markdown-content li {
+  margin: 0.375em 0;
+}
+
+.markdown-content li > p {
+  margin: 0.25em 0;
+}
+
+.markdown-content ul {
+  list-style-type: disc;
+}
+
+.markdown-content ol {
+  list-style-type: decimal;
+}
+
+.markdown-content ul ul {
+  list-style-type: circle;
+}
+
+/* Strong and emphasis */
+.markdown-content strong {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.markdown-content em {
+  font-style: italic;
+}
+
+/* Links */
+.markdown-content a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.markdown-content a:hover {
+  text-decoration: underline;
+}
+
+/* Inline code */
+.markdown-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875em;
+  background: #f3f4f6;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  color: #dc2626;
+}
+
+/* Code blocks */
+.markdown-content pre {
+  margin: 1em 0;
+  padding: 1em;
+  background: #1f2937;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.markdown-content pre code {
+  background: transparent;
+  padding: 0;
+  color: #e5e7eb;
+  font-size: 0.8125em;
+  line-height: 1.6;
+}
+
+/* Blockquotes */
+.markdown-content blockquote {
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  border-left: 4px solid #3b82f6;
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+.markdown-content blockquote p {
+  margin: 0.25em 0;
+}
+
+/* Horizontal rule */
+.markdown-content hr {
+  margin: 1.5em 0;
+  border: none;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Tables */
+.markdown-content table {
+  width: 100%;
+  margin: 1em 0;
+  border-collapse: collapse;
+  font-size: 0.875em;
+}
+
+.markdown-content th,
+.markdown-content td {
+  padding: 0.5em 0.75em;
+  border: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+.markdown-content th {
+  background: #f9fafb;
+  font-weight: 600;
+}
+
+.markdown-content tr:nth-child(even) {
+  background: #f9fafb;
+}
+
+/* Task lists */
+.markdown-content input[type='checkbox'] {
+  margin-right: 0.5em;
+}

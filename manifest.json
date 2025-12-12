@@ -1,15 +1,9 @@
 {
   "manifest_version": 3,
   "name": "KnowledgeLens",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "AI-powered browser assistant for reading and knowledge management",
-  "permissions": [
-    "activeTab",
-    "storage",
-    "contextMenus",
-    "scripting",
-    "offscreen"
-  ],
+  "permissions": ["activeTab", "storage", "contextMenus", "scripting", "offscreen"],
   "action": {
     "default_popup": "src/popup/index.html",
     "default_icon": {

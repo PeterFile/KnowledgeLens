@@ -1,0 +1,15 @@
+{
+  "types": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Bug Fixes" },
+    { "type": "chore", "section": "Chores", "hidden": false },
+    { "type": "docs", "section": "Documentation" },
+    { "type": "style", "section": "Styles" },
+    { "type": "refactor", "section": "Refactors" },
+    { "type": "test", "section": "Tests" }
+  ],
+  "bumpFiles": [
+    { "filename": "package.json", "type": "json" },
+    { "filename": "manifest.json", "type": "json" }
+  ]
+}

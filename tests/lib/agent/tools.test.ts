@@ -434,4 +434,326 @@ describe('Property-Based Tests', () => {
       );
     });
   });
+
+  /**
+   * **Feature: agent-architecture-upgrade, Property 5: Tool Validation Rejects Invalid Input**
+   * **Validates: Requirements 2.4**
+   *
+   * Property: For any tool call with parameters that violate the schema,
+   * the validation function SHALL return an error with a descriptive message.
+   */
+  describe('Property 5: Tool Validation Rejects Invalid Input', () => {
+    // Helper to generate a value of the wrong type for a given schema type
+    const wrongTypeValueArb = (correctType: JSONSchemaProperty['type']): fc.Arbitrary<unknown> => {
+      switch (correctType) {
+        case 'string':
+          // Return non-string values
+          return fc.oneof(fc.integer(), fc.boolean(), fc.constant([1, 2]), fc.constant({ a: 1 }));
+        case 'number':
+          // Return non-number values
+          return fc.oneof(
+            fc.string({ minLength: 1 }),
+            fc.boolean(),
+            fc.constant([1, 2]),
+            fc.constant({ a: 1 })
+          );
+        case 'boolean':
+          // Return non-boolean values
+          return fc.oneof(
+            fc.string({ minLength: 1 }),
+            fc.integer(),
+            fc.constant([1, 2]),
+            fc.constant({ a: 1 })
+          );
+        case 'array':
+          // Return non-array values
+          return fc.oneof(fc.string({ minLength: 1 }), fc.integer(), fc.boolean());
+        case 'object':
+          // Return non-object values (arrays are objects in JS, so exclude them)
+          return fc.oneof(fc.string({ minLength: 1 }), fc.integer(), fc.boolean());
+        default:
+          return fc.string();
+      }
+    };
+
+    // Generate a valid value for a given schema type
+    const validValueArb = (type: JSONSchemaProperty['type']): fc.Arbitrary<unknown> => {
+      switch (type) {
+        case 'string':
+          return fc.string();
+        case 'number':
+          return fc.double({ noNaN: true });
+        case 'boolean':
+          return fc.boolean();
+        case 'array':
+          return fc.array(fc.string());
+        case 'object':
+          return fc.object();
+        default:
+          return fc.string();
+      }
+    };
+
+    it('rejects tool calls with wrong parameter types', () => {
+      fc.assert(
+        fc.property(
+          identifierArb,
+          descriptionArb,
+          identifierArb,
+          propertyTypeArb,
+          fc.context(),
+          (toolName, toolDesc, paramName, paramType, ctx) => {
+            clearToolRegistry();
+
+            // Create a tool with a single required parameter of specific type
+            const schema: ToolSchema = {
+              name: toolName,
+              description: toolDesc,
+              parameters: {
+                type: 'object',
+                properties: {
+                  [paramName]: { type: paramType, description: 'Test param' },
+                },
+                required: [paramName],
+              },
+              examples: [],
+            };
+
+            registerTool(schema, async () => ({ success: true, tokenCount: 0 }));
+
+            // Generate a value of the wrong type
+            const wrongValue = fc.sample(wrongTypeValueArb(paramType), 1)[0];
+            ctx.log(`Testing ${paramType} with wrong value: ${JSON.stringify(wrongValue)}`);
+
+            const call: ToolCall = {
+              name: toolName,
+              parameters: { [paramName]: wrongValue },
+              reasoning: 'Testing invalid input',
+            };
+
+            const result = validateToolCall(call);
+
+            // Validation should fail
+            expect(result.valid).toBe(false);
+            // Error message should be descriptive
+            expect(result.errors).toBeDefined();
+            expect(result.errors!.length).toBeGreaterThan(0);
+            // Error should mention the expected type
+            expect(result.errors![0]).toMatch(/expected|type/i);
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('rejects tool calls missing required parameters', () => {
+      fc.assert(
+        fc.property(
+          identifierArb,
+          descriptionArb,
+          fc.uniqueArray(identifierArb, { minLength: 1, maxLength: 5 }),
+          fc.context(),
+          (toolName, toolDesc, requiredParams, ctx) => {
+            clearToolRegistry();
+
+            // Create properties for all required params
+            const properties: Record<string, JSONSchemaProperty> = {};
+            for (const param of requiredParams) {
+              properties[param] = { type: 'string', description: `Param ${param}` };
+            }
+
+            const schema: ToolSchema = {
+              name: toolName,
+              description: toolDesc,
+              parameters: {
+                type: 'object',
+                properties,
+                required: requiredParams,
+              },
+              examples: [],
+            };
+
+            registerTool(schema, async () => ({ success: true, tokenCount: 0 }));
+
+            // Pick a random required param to omit
+            const omittedIndex = Math.floor(Math.random() * requiredParams.length);
+            const omittedParam = requiredParams[omittedIndex];
+            ctx.log(`Omitting required param: ${omittedParam}`);
+
+            // Create parameters object with all but one required param
+            const params: Record<string, unknown> = {};
+            for (const param of requiredParams) {
+              if (param !== omittedParam) {
+                params[param] = 'valid_value';
+              }
+            }
+
+            const call: ToolCall = {
+              name: toolName,
+              parameters: params,
+              reasoning: 'Testing missing required param',
+            };
+
+            const result = validateToolCall(call);
+
+            // Validation should fail
+            expect(result.valid).toBe(false);
+            expect(result.errors).toBeDefined();
+            expect(result.errors!.length).toBeGreaterThan(0);
+            // Error should mention missing required parameter
+            expect(
+              result.errors!.some((e) => e.includes('Missing required') || e.includes(omittedParam))
+            ).toBe(true);
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('rejects tool calls for unknown tools', () => {
+      fc.assert(
+        fc.property(
+          identifierArb,
+          identifierArb.filter((name) => name !== 'registered_tool'),
+          (registeredName, unknownName) => {
+            // Ensure names are different
+            fc.pre(registeredName !== unknownName);
+
+            clearToolRegistry();
+
+            // Register a tool
+            const schema: ToolSchema = {
+              name: registeredName,
+              description: 'A registered tool',
+              parameters: {
+                type: 'object',
+                properties: {},
+              },
+              examples: [],
+            };
+
+            registerTool(schema, async () => ({ success: true, tokenCount: 0 }));
+
+            // Try to call an unknown tool
+            const call: ToolCall = {
+              name: unknownName,
+              parameters: {},
+              reasoning: 'Testing unknown tool',
+            };
+
+            const result = validateToolCall(call);
+
+            // Validation should fail
+            expect(result.valid).toBe(false);
+            expect(result.errors).toBeDefined();
+            expect(result.errors!.length).toBeGreaterThan(0);
+            // Error should mention unknown tool
+            expect(result.errors![0]).toContain('Unknown tool');
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('rejects string parameters with invalid enum values', () => {
+      fc.assert(
+        fc.property(
+          identifierArb,
+          descriptionArb,
+          identifierArb,
+          fc.uniqueArray(fc.string({ minLength: 1, maxLength: 20 }), {
+            minLength: 2,
+            maxLength: 5,
+          }),
+          fc.string({ minLength: 1, maxLength: 20 }),
+          (toolName, toolDesc, paramName, enumValues, invalidValue) => {
+            // Ensure invalid value is not in enum
+            fc.pre(!enumValues.includes(invalidValue));
+
+            clearToolRegistry();
+
+            const schema: ToolSchema = {
+              name: toolName,
+              description: toolDesc,
+              parameters: {
+                type: 'object',
+                properties: {
+                  [paramName]: {
+                    type: 'string',
+                    description: 'Enum param',
+                    enum: enumValues,
+                  },
+                },
+                required: [paramName],
+              },
+              examples: [],
+            };
+
+            registerTool(schema, async () => ({ success: true, tokenCount: 0 }));
+
+            const call: ToolCall = {
+              name: toolName,
+              parameters: { [paramName]: invalidValue },
+              reasoning: 'Testing invalid enum value',
+            };
+
+            const result = validateToolCall(call);
+
+            // Validation should fail
+            expect(result.valid).toBe(false);
+            expect(result.errors).toBeDefined();
+            expect(result.errors!.length).toBeGreaterThan(0);
+            // Error should mention enum constraint
+            expect(result.errors![0]).toMatch(/must be one of/i);
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    it('accepts valid tool calls (sanity check)', () => {
+      fc.assert(
+        fc.property(
+          identifierArb,
+          descriptionArb,
+          identifierArb,
+          propertyTypeArb,
+          (toolName, toolDesc, paramName, paramType) => {
+            clearToolRegistry();
+
+            const schema: ToolSchema = {
+              name: toolName,
+              description: toolDesc,
+              parameters: {
+                type: 'object',
+                properties: {
+                  [paramName]: { type: paramType, description: 'Test param' },
+                },
+                required: [paramName],
+              },
+              examples: [],
+            };
+
+            registerTool(schema, async () => ({ success: true, tokenCount: 0 }));
+
+            // Generate a valid value for the parameter type
+            const validValue = fc.sample(validValueArb(paramType), 1)[0];
+
+            const call: ToolCall = {
+              name: toolName,
+              parameters: { [paramName]: validValue },
+              reasoning: 'Testing valid input',
+            };
+
+            const result = validateToolCall(call);
+
+            // Validation should pass
+            expect(result.valid).toBe(true);
+            expect(result.errors).toBeUndefined();
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+  });
 });

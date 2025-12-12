@@ -2,6 +2,7 @@
 // Requirements: 3.1, 3.2, 3.3, 3.4
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as fc from 'fast-check';
 import {
   createEpisodicMemory,
   extractErrorType,
@@ -597,5 +598,318 @@ describe('Reflection Manager', () => {
       expect(summary.errorTypes).toContain('validation:summarize');
       expect(summary.mostCommonError).toBe('timeout:search_web');
     });
+  });
+});
+
+// ============================================================================
+// Property-Based Tests
+// ============================================================================
+
+/**
+ * **Feature: agent-architecture-upgrade, Property 6: Reflection Storage**
+ * **Validates: Requirements 3.2, 3.3**
+ *
+ * Property: For any failed action that triggers reflection, the generated reflection
+ * SHALL be stored in episodic memory and retrievable for subsequent retries.
+ */
+describe('Property 6: Reflection Storage', () => {
+  // Arbitrary for generating valid tool names
+  const toolNameArb = fc.stringMatching(/^[a-z][a-z0-9_]{2,29}$/);
+
+  // Arbitrary for generating non-empty content strings
+  const contentArb = fc.string({ minLength: 1, maxLength: 200 });
+
+  // Arbitrary for generating timestamps
+  const timestampArb = fc.integer({ min: 1700000000000, max: 1800000000000 });
+
+  // Arbitrary for generating valid ToolCall
+  const toolCallArb: fc.Arbitrary<ToolCall> = fc.record({
+    name: toolNameArb,
+    parameters: fc.dictionary(
+      fc.stringMatching(/^[a-z][a-z0-9_]{0,19}$/),
+      fc.oneof(fc.string({ maxLength: 100 }), fc.integer(), fc.boolean())
+    ),
+    reasoning: contentArb,
+  });
+
+  // Arbitrary for generating valid error types
+  const errorTypeArb = fc.oneof(
+    toolNameArb.map((name) => `timeout:${name}`),
+    toolNameArb.map((name) => `validation:${name}`),
+    toolNameArb.map((name) => `not_found:${name}`),
+    toolNameArb.map((name) => `error:${name}`),
+    fc.constant('rate_limit'),
+    fc.constant('unauthorized'),
+    fc.constant('forbidden'),
+    fc.constant('network_error')
+  );
+
+  // Arbitrary for generating valid Reflection
+  const reflectionArb: fc.Arbitrary<Reflection> = fc.record({
+    id: fc.uuid(),
+    timestamp: timestampArb,
+    errorType: errorTypeArb,
+    failedAction: toolCallArb,
+    analysis: contentArb,
+    suggestedFix: contentArb,
+    applied: fc.boolean(),
+  });
+
+  // Arbitrary for generating a list of reflections with unique IDs
+  const reflectionListArb = fc
+    .array(reflectionArb, { minLength: 1, maxLength: 10 })
+    .map((reflections) => {
+      // Ensure unique IDs
+      return reflections.map((r, i) => ({ ...r, id: `ref-${i}-${r.id}` }));
+    });
+
+  // Arbitrary for session IDs
+  const sessionIdArb = fc.stringMatching(/^session_[a-z0-9]{5,15}$/);
+
+  it('stored reflections are retrievable from memory', () => {
+    fc.assert(
+      fc.property(sessionIdArb, reflectionListArb, (sessionId, reflections) => {
+        let memory = createEpisodicMemory(sessionId);
+
+        // Store all reflections
+        for (const reflection of reflections) {
+          memory = storeReflection(memory, reflection);
+        }
+
+        // Property: All stored reflections should be in memory
+        expect(memory.reflections).toHaveLength(reflections.length);
+
+        // Property: Each reflection should be retrievable by ID
+        for (const reflection of reflections) {
+          const found = memory.reflections.find((r) => r.id === reflection.id);
+          expect(found).toBeDefined();
+          expect(found!.errorType).toBe(reflection.errorType);
+          expect(found!.analysis).toBe(reflection.analysis);
+          expect(found!.suggestedFix).toBe(reflection.suggestedFix);
+          expect(found!.failedAction.name).toBe(reflection.failedAction.name);
+        }
+      }),
+      { numRuns: 100 }
+    );
+  });
+
+  it('reflections for same tool are retrievable for retries', () => {
+    fc.assert(
+      fc.property(
+        sessionIdArb,
+        toolCallArb,
+        reflectionArb,
+        (sessionId, retryAction, reflection) => {
+          let memory = createEpisodicMemory(sessionId);
+
+          // Create a reflection for the same tool as the retry action
+          const storedReflection: Reflection = {
+            ...reflection,
+            failedAction: {
+              ...reflection.failedAction,
+              name: retryAction.name, // Same tool name
+            },
+          };
+
+          memory = storeReflection(memory, storedReflection);
+
+          // Property: When retrying with the same tool, the reflection should be retrievable
+          const relevant = getRelevantReflections(retryAction, memory);
+
+          expect(relevant.length).toBeGreaterThanOrEqual(1);
+          expect(relevant.some((r) => r.id === storedReflection.id)).toBe(true);
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('reflections with matching parameters are retrievable for retries', () => {
+    fc.assert(
+      fc.property(
+        sessionIdArb,
+        fc.stringMatching(/^[a-z][a-z0-9_]{2,19}$/), // shared param key
+        fc.string({ minLength: 1, maxLength: 50 }), // shared param value
+        reflectionArb,
+        (sessionId, sharedKey, sharedValue, reflection) => {
+          let memory = createEpisodicMemory(sessionId);
+
+          // Create a reflection with a specific parameter
+          const storedReflection: Reflection = {
+            ...reflection,
+            failedAction: {
+              ...reflection.failedAction,
+              parameters: { [sharedKey]: sharedValue },
+            },
+          };
+
+          memory = storeReflection(memory, storedReflection);
+
+          // Create a retry action with the same parameter (different tool)
+          const retryAction: ToolCall = {
+            name: 'different_tool_name',
+            parameters: { [sharedKey]: sharedValue },
+            reasoning: 'Retry with same parameter',
+          };
+
+          // Property: Reflection with matching parameter should be retrievable
+          const relevant = getRelevantReflections(retryAction, memory);
+
+          expect(relevant.some((r) => r.id === storedReflection.id)).toBe(true);
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('error counts are correctly tracked for stored reflections', () => {
+    fc.assert(
+      fc.property(
+        sessionIdArb,
+        errorTypeArb,
+        fc.integer({ min: 1, max: 10 }),
+        (sessionId, errorType, count) => {
+          let memory = createEpisodicMemory(sessionId);
+
+          // Store multiple reflections with the same error type
+          for (let i = 0; i < count; i++) {
+            const reflection: Reflection = {
+              id: `ref-${i}`,
+              timestamp: Date.now(),
+              errorType,
+              failedAction: { name: 'test_tool', parameters: {}, reasoning: 'test' },
+              analysis: `Analysis ${i}`,
+              suggestedFix: `Fix ${i}`,
+              applied: false,
+            };
+            memory = storeReflection(memory, reflection);
+          }
+
+          // Property: Error count should match the number of stored reflections
+          expect(getErrorCount(errorType, memory)).toBe(count);
+
+          // Property: isRepeatedError should return true when count >= 2
+          expect(isRepeatedError(errorType, memory)).toBe(count >= 2);
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('storing reflections is immutable - original memory unchanged', () => {
+    fc.assert(
+      fc.property(sessionIdArb, reflectionArb, (sessionId, reflection) => {
+        const originalMemory = createEpisodicMemory(sessionId);
+        const originalReflectionsLength = originalMemory.reflections.length;
+        const originalErrorCountsSize = originalMemory.errorCounts.size;
+
+        // Store a reflection
+        const updatedMemory = storeReflection(originalMemory, reflection);
+
+        // Property: Original memory should be unchanged
+        expect(originalMemory.reflections.length).toBe(originalReflectionsLength);
+        expect(originalMemory.errorCounts.size).toBe(originalErrorCountsSize);
+
+        // Property: Updated memory should have the new reflection
+        expect(updatedMemory.reflections.length).toBe(originalReflectionsLength + 1);
+      }),
+      { numRuns: 100 }
+    );
+  });
+
+  it('reflections preserve all fields after storage', () => {
+    fc.assert(
+      fc.property(sessionIdArb, reflectionArb, (sessionId, reflection) => {
+        let memory = createEpisodicMemory(sessionId);
+        memory = storeReflection(memory, reflection);
+
+        const stored = memory.reflections.find((r) => r.id === reflection.id);
+
+        // Property: All fields should be preserved exactly
+        expect(stored).toBeDefined();
+        expect(stored!.id).toBe(reflection.id);
+        expect(stored!.timestamp).toBe(reflection.timestamp);
+        expect(stored!.errorType).toBe(reflection.errorType);
+        expect(stored!.analysis).toBe(reflection.analysis);
+        expect(stored!.suggestedFix).toBe(reflection.suggestedFix);
+        expect(stored!.applied).toBe(reflection.applied);
+        expect(stored!.failedAction.name).toBe(reflection.failedAction.name);
+        expect(stored!.failedAction.reasoning).toBe(reflection.failedAction.reasoning);
+        expect(stored!.failedAction.parameters).toEqual(reflection.failedAction.parameters);
+      }),
+      { numRuns: 100 }
+    );
+  });
+
+  it('multiple reflections for different tools are independently retrievable', () => {
+    fc.assert(
+      fc.property(
+        sessionIdArb,
+        fc
+          .array(toolNameArb, { minLength: 2, maxLength: 5 })
+          .filter((names) => new Set(names).size === names.length),
+        (sessionId, toolNames) => {
+          let memory = createEpisodicMemory(sessionId);
+
+          // Store one reflection per tool
+          const storedReflections: Reflection[] = toolNames.map((name, i) => ({
+            id: `ref-${i}`,
+            timestamp: Date.now(),
+            errorType: `error:${name}`,
+            failedAction: { name, parameters: {}, reasoning: `Testing ${name}` },
+            analysis: `Analysis for ${name}`,
+            suggestedFix: `Fix for ${name}`,
+            applied: false,
+          }));
+
+          for (const reflection of storedReflections) {
+            memory = storeReflection(memory, reflection);
+          }
+
+          // Property: Each tool's reflection should be retrievable independently
+          for (const toolName of toolNames) {
+            const retryAction: ToolCall = {
+              name: toolName,
+              parameters: {},
+              reasoning: 'Retry',
+            };
+
+            const relevant = getRelevantReflections(retryAction, memory);
+
+            // Should find exactly the reflection for this tool
+            expect(relevant.some((r) => r.failedAction.name === toolName)).toBe(true);
+          }
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('formatted reflections contain all stored reflection data', () => {
+    fc.assert(
+      fc.property(sessionIdArb, reflectionListArb, (sessionId, reflections) => {
+        let memory = createEpisodicMemory(sessionId);
+
+        for (const reflection of reflections) {
+          memory = storeReflection(memory, reflection);
+        }
+
+        const formatted = formatReflectionsForContext(memory.reflections);
+
+        // Property: Formatted output should contain data from all reflections
+        if (reflections.length > 0) {
+          expect(formatted).toContain('<previous_failures>');
+          expect(formatted).toContain('</previous_failures>');
+
+          for (const reflection of reflections) {
+            expect(formatted).toContain(`Tool: ${reflection.failedAction.name}`);
+            expect(formatted).toContain(`Error Type: ${reflection.errorType}`);
+            expect(formatted).toContain(`Analysis: ${reflection.analysis}`);
+            expect(formatted).toContain(`Suggested Fix: ${reflection.suggestedFix}`);
+          }
+        }
+      }),
+      { numRuns: 100 }
+    );
   });
 });

@@ -9,17 +9,13 @@ export * from './tool-definitions';
 export * from './state';
 export * from './context';
 export * from './reflection';
+export * from './rag';
 
 // Default configuration values
 export const DEFAULT_AGENT_CONFIG = {
   maxSteps: 5,
   maxRetries: 3,
   tokenBudget: 100000,
-} as const;
-
-export const DEFAULT_RAG_CONFIG = {
-  maxRetries: 2,
-  relevanceThreshold: 0.5,
 } as const;
 
 // State version for migration support

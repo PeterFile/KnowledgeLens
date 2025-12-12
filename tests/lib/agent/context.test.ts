@@ -535,4 +535,233 @@ describe('Property-Based Tests', () => {
       );
     });
   });
+
+  /**
+   * **Feature: agent-architecture-upgrade, Property 11: Grounding Preservation**
+   * **Validates: Requirements 5.3, 5.4**
+   *
+   * Property: For any context compaction, the grounding section (goal, key decisions,
+   * user preferences) SHALL be preserved in the compacted context.
+   */
+  describe('Property 11: Grounding Preservation', () => {
+    beforeEach(() => {
+      // Mock the LLM call to return a short summary
+      vi.spyOn(api, 'callLLMWithMessages').mockImplementation(
+        async (_messages, _config, onToken) => {
+          const shortSummary = 'Compacted summary of conversation.';
+          onToken(shortSummary);
+          return {
+            content: shortSummary,
+            usage: { promptTokens: 100, completionTokens: 10 },
+          };
+        }
+      );
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    // Arbitrary for generating non-empty alphanumeric strings
+    const nonEmptyStringArb = fc.stringMatching(/^[a-zA-Z][a-zA-Z0-9 ]{2,30}$/);
+
+    // Arbitrary for generating key-value pairs for user preferences
+    const userPreferenceArb = fc.tuple(
+      fc.stringMatching(/^[a-zA-Z][a-zA-Z0-9]{2,15}$/), // key
+      fc.stringMatching(/^[a-zA-Z][a-zA-Z0-9 ]{2,20}$/) // value
+    );
+
+    // Helper to create a context with rich grounding that needs compaction
+    function createContextWithRichGrounding(
+      goal: string,
+      maxTokens: number,
+      completedSubtasks: string[],
+      keyDecisions: string[],
+      userPreferences: Array<[string, string]>
+    ): AgentContext {
+      let context = createContext(goal, maxTokens);
+
+      // Add completed subtasks
+      for (const subtask of completedSubtasks) {
+        context = markSubtaskComplete(context, subtask);
+      }
+
+      // Add key decisions
+      for (const decision of keyDecisions) {
+        context = recordKeyDecision(context, decision);
+      }
+
+      // Add user preferences
+      for (const [key, value] of userPreferences) {
+        context = setUserPreference(context, key, value);
+      }
+
+      // Add entries until we exceed the compaction threshold
+      while (!needsCompaction(context)) {
+        const entry = createContextEntry(
+          'user',
+          'Additional padding content to trigger compaction threshold for testing'
+        );
+        context = addToContext(context, entry);
+      }
+
+      return context;
+    }
+
+    // Arbitrary for generating contexts with rich grounding
+    const richGroundingContextArb: fc.Arbitrary<AgentContext> = fc
+      .tuple(
+        nonEmptyStringArb, // goal
+        fc.integer({ min: 300, max: 600 }), // maxTokens (small to trigger compaction)
+        fc.array(nonEmptyStringArb, { minLength: 1, maxLength: 5 }), // completedSubtasks
+        fc.array(nonEmptyStringArb, { minLength: 1, maxLength: 5 }), // keyDecisions
+        fc.array(userPreferenceArb, { minLength: 1, maxLength: 3 }) // userPreferences
+      )
+      .map(([goal, maxTokens, subtasks, decisions, prefs]) =>
+        createContextWithRichGrounding(goal, maxTokens, subtasks, decisions, prefs)
+      );
+
+    it('compaction preserves the current goal', async () => {
+      await fc.assert(
+        fc.asyncProperty(richGroundingContextArb, async (context) => {
+          const originalGoal = context.grounding.currentGoal;
+
+          const compacted = await compactContext(context, mockLLMConfig);
+
+          // Property: Goal must be exactly preserved
+          expect(compacted.grounding.currentGoal).toBe(originalGoal);
+        }),
+        { numRuns: 100 }
+      );
+    });
+
+    it('compaction preserves all completed subtasks', async () => {
+      await fc.assert(
+        fc.asyncProperty(richGroundingContextArb, async (context) => {
+          const originalSubtasks = [...context.grounding.completedSubtasks];
+
+          const compacted = await compactContext(context, mockLLMConfig);
+
+          // Property: All completed subtasks must be preserved in order
+          expect(compacted.grounding.completedSubtasks).toEqual(originalSubtasks);
+          expect(compacted.grounding.completedSubtasks.length).toBe(originalSubtasks.length);
+        }),
+        { numRuns: 100 }
+      );
+    });
+
+    it('compaction preserves all key decisions', async () => {
+      await fc.assert(
+        fc.asyncProperty(richGroundingContextArb, async (context) => {
+          const originalDecisions = [...context.grounding.keyDecisions];
+
+          const compacted = await compactContext(context, mockLLMConfig);
+
+          // Property: All key decisions must be preserved in order
+          expect(compacted.grounding.keyDecisions).toEqual(originalDecisions);
+          expect(compacted.grounding.keyDecisions.length).toBe(originalDecisions.length);
+        }),
+        { numRuns: 100 }
+      );
+    });
+
+    it('compaction preserves all user preferences', async () => {
+      await fc.assert(
+        fc.asyncProperty(richGroundingContextArb, async (context) => {
+          const originalPreferences = { ...context.grounding.userPreferences };
+
+          const compacted = await compactContext(context, mockLLMConfig);
+
+          // Property: All user preferences must be preserved with exact values
+          expect(compacted.grounding.userPreferences).toEqual(originalPreferences);
+          expect(Object.keys(compacted.grounding.userPreferences).length).toBe(
+            Object.keys(originalPreferences).length
+          );
+        }),
+        { numRuns: 100 }
+      );
+    });
+
+    it('compaction preserves entire grounding section as a unit', async () => {
+      await fc.assert(
+        fc.asyncProperty(richGroundingContextArb, async (context) => {
+          // Deep copy the original grounding
+          const originalGrounding = {
+            currentGoal: context.grounding.currentGoal,
+            completedSubtasks: [...context.grounding.completedSubtasks],
+            keyDecisions: [...context.grounding.keyDecisions],
+            userPreferences: { ...context.grounding.userPreferences },
+          };
+
+          const compacted = await compactContext(context, mockLLMConfig);
+
+          // Property: Entire grounding section must be preserved
+          expect(compacted.grounding).toEqual(originalGrounding);
+        }),
+        { numRuns: 100 }
+      );
+    });
+
+    it('grounding is preserved across multiple compactions', async () => {
+      await fc.assert(
+        fc.asyncProperty(richGroundingContextArb, async (context) => {
+          // Deep copy the original grounding
+          const originalGrounding = {
+            currentGoal: context.grounding.currentGoal,
+            completedSubtasks: [...context.grounding.completedSubtasks],
+            keyDecisions: [...context.grounding.keyDecisions],
+            userPreferences: { ...context.grounding.userPreferences },
+          };
+
+          // First compaction
+          const compacted1 = await compactContext(context, mockLLMConfig);
+          expect(compacted1.grounding).toEqual(originalGrounding);
+
+          // Add more entries to potentially trigger another compaction
+          let contextWithMore = compacted1;
+          for (let i = 0; i < 15; i++) {
+            const entry = createContextEntry('user', `Message ${i} with additional content here`);
+            contextWithMore = addToContext(contextWithMore, entry);
+          }
+
+          // Second compaction (if needed)
+          if (needsCompaction(contextWithMore)) {
+            const compacted2 = await compactContext(contextWithMore, mockLLMConfig);
+
+            // Property: Grounding must still be preserved after multiple compactions
+            expect(compacted2.grounding).toEqual(originalGrounding);
+          }
+        }),
+        { numRuns: 50 }
+      );
+    });
+
+    it('generateGrounding output contains all grounding elements after compaction', async () => {
+      await fc.assert(
+        fc.asyncProperty(richGroundingContextArb, async (context) => {
+          const compacted = await compactContext(context, mockLLMConfig);
+
+          // Generate grounding string from compacted context
+          const groundingOutput = generateGrounding(compacted);
+
+          // Property: Generated grounding must contain all preserved elements
+          expect(groundingOutput).toContain(context.grounding.currentGoal);
+
+          for (const subtask of context.grounding.completedSubtasks) {
+            expect(groundingOutput).toContain(subtask);
+          }
+
+          for (const decision of context.grounding.keyDecisions) {
+            expect(groundingOutput).toContain(decision);
+          }
+
+          for (const [key, value] of Object.entries(context.grounding.userPreferences)) {
+            expect(groundingOutput).toContain(key);
+            expect(groundingOutput).toContain(value);
+          }
+        }),
+        { numRuns: 100 }
+      );
+    });
+  });
 });

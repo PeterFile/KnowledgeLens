@@ -69,45 +69,51 @@ export function ScreenshotOverlay({ onCapture, onCancel }: ScreenshotOverlayProp
     });
   }, []);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging || !selection) return;
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isDragging || !selection) return;
 
-    e.preventDefault();
-    setSelection((prev) => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        endX: e.clientX,
-        endY: e.clientY,
+      e.preventDefault();
+      setSelection((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          endX: e.clientX,
+          endY: e.clientY,
+        };
+      });
+    },
+    [isDragging, selection]
+  );
+
+  const handleMouseUp = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isDragging || !selection) return;
+
+      e.preventDefault();
+      setIsDragging(false);
+
+      const normalized = getNormalizedSelection(selection);
+
+      // Minimum selection size (10x10 pixels)
+      if (normalized.width < 10 || normalized.height < 10) {
+        setSelection(null);
+        return;
+      }
+
+      // Create region with device pixel ratio for high-DPI displays
+      const region: ScreenshotRegion = {
+        x: normalized.x,
+        y: normalized.y,
+        width: normalized.width,
+        height: normalized.height,
+        devicePixelRatio: window.devicePixelRatio || 1,
       };
-    });
-  }, [isDragging, selection]);
 
-  const handleMouseUp = useCallback((e: React.MouseEvent) => {
-    if (!isDragging || !selection) return;
-
-    e.preventDefault();
-    setIsDragging(false);
-
-    const normalized = getNormalizedSelection(selection);
-
-    // Minimum selection size (10x10 pixels)
-    if (normalized.width < 10 || normalized.height < 10) {
-      setSelection(null);
-      return;
-    }
-
-    // Create region with device pixel ratio for high-DPI displays
-    const region: ScreenshotRegion = {
-      x: normalized.x,
-      y: normalized.y,
-      width: normalized.width,
-      height: normalized.height,
-      devicePixelRatio: window.devicePixelRatio || 1,
-    };
-
-    onCapture(region);
-  }, [isDragging, selection, getNormalizedSelection, onCapture]);
+      onCapture(region);
+    },
+    [isDragging, selection, getNormalizedSelection, onCapture]
+  );
 
   // Handle escape key to cancel
   useEffect(() => {
@@ -150,11 +156,11 @@ export function ScreenshotOverlay({ onCapture, onCancel }: ScreenshotOverlayProp
       onMouseUp={handleMouseUp}
     >
       {/* Instructions */}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-white rounded-lg shadow-lg px-4 py-2 flex items-center gap-3 z-[999999]"
-           style={{ transform: 'translateX(-50%)' }}>
-        <span className="text-sm text-gray-700">
-          Drag to select a region • Press ESC to cancel
-        </span>
+      <div
+        className="fixed top-4 left-1/2 -translate-x-1/2 bg-white rounded-lg shadow-lg px-4 py-2 flex items-center gap-3 z-[999999]"
+        style={{ transform: 'translateX(-50%)' }}
+      >
+        <span className="text-sm text-gray-700">Drag to select a region • Press ESC to cancel</span>
         <button
           data-cancel-button
           onClick={onCancel}

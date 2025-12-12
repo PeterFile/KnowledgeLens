@@ -8,18 +8,13 @@ import type { LLMConfig, SearchResult } from '../../types';
 // ============================================================================
 
 export interface AgentConfig {
-  maxSteps: number;           // Default: 5
-  maxRetries: number;         // Default: 3
-  tokenBudget: number;        // User-configurable
+  maxSteps: number; // Default: 5
+  maxRetries: number; // Default: 3
+  tokenBudget: number; // User-configurable
   llmConfig: LLMConfig;
 }
 
-export type AgentPhase = 
-  | 'thinking' 
-  | 'executing' 
-  | 'analyzing' 
-  | 'reflecting' 
-  | 'synthesizing';
+export type AgentPhase = 'thinking' | 'executing' | 'analyzing' | 'reflecting' | 'synthesizing';
 
 export interface AgentStatus {
   phase: AgentPhase;
@@ -35,12 +30,7 @@ export type StatusCallback = (status: AgentStatus) => void;
 // Agent Steps & Trajectory
 // ============================================================================
 
-export type StepType = 
-  | 'thought' 
-  | 'action' 
-  | 'observation' 
-  | 'reflection' 
-  | 'synthesis';
+export type StepType = 'thought' | 'action' | 'observation' | 'reflection' | 'synthesis';
 
 export interface AgentStep {
   stepNumber: number;
@@ -52,11 +42,7 @@ export interface AgentStep {
   tokenCount: number;
 }
 
-export type TrajectoryStatus = 
-  | 'running' 
-  | 'completed' 
-  | 'failed' 
-  | 'terminated';
+export type TrajectoryStatus = 'running' | 'completed' | 'failed' | 'terminated';
 
 export interface AgentTrajectory {
   requestId: string;
@@ -64,7 +50,7 @@ export interface AgentTrajectory {
   steps: AgentStep[];
   status: TrajectoryStatus;
   totalTokens: { input: number; output: number };
-  efficiency?: number;  // optimal steps / actual steps
+  efficiency?: number; // optimal steps / actual steps
 }
 
 // ============================================================================
@@ -102,7 +88,7 @@ export interface ToolSchema {
 export interface ToolCall {
   name: string;
   parameters: Record<string, unknown>;
-  reasoning: string;  // Why this tool was selected
+  reasoning: string; // Why this tool was selected
 }
 
 export interface ToolResult {
@@ -168,7 +154,7 @@ export interface Reflection {
 export interface EpisodicMemory {
   sessionId: string;
   reflections: Reflection[];
-  errorCounts: Map<string, number>;  // Track repeated errors
+  errorCounts: Map<string, number>; // Track repeated errors
 }
 
 // ============================================================================
@@ -195,18 +181,18 @@ export interface AgentState {
 export interface SerializedContext {
   grounding: GroundingSection;
   history: ContextEntry[];
-  reflections: string[];  // Reflection IDs
+  reflections: string[]; // Reflection IDs
   tokenCount: number;
 }
 
 export interface SerializedMemory {
   sessionId: string;
   reflections: Reflection[];
-  errorCounts: [string, number][];  // Map as array for JSON serialization
+  errorCounts: [string, number][]; // Map as array for JSON serialization
 }
 
 export interface PersistedAgentState {
-  version: number;  // For migration
+  version: number; // For migration
   sessionId: string;
   trajectory: AgentTrajectory | null;
   context: SerializedContext;
@@ -229,13 +215,13 @@ export interface GradedResult {
 }
 
 export interface RAGConfig {
-  maxRetries: number;        // Default: 2
+  maxRetries: number; // Default: 2
   relevanceThreshold: number; // Default: 0.5 (50% must be relevant)
 }
 
 export interface RAGResult {
   relevantResults: GradedResult[];
-  queryHistory: string[];  // Original + rewrites
+  queryHistory: string[]; // Original + rewrites
   fallbackUsed: boolean;
   disclaimer?: string;
 }
@@ -244,12 +230,12 @@ export interface RAGResult {
 // Trajectory Logging Types
 // ============================================================================
 
-export type LogEntryType = 
-  | 'thought' 
-  | 'tool_call' 
-  | 'tool_result' 
-  | 'observation' 
-  | 'reflection' 
+export type LogEntryType =
+  | 'thought'
+  | 'tool_call'
+  | 'tool_result'
+  | 'observation'
+  | 'reflection'
   | 'error';
 
 export interface LogEntry {
@@ -310,7 +296,7 @@ export interface TokenEstimate {
   input: number;
   output: number;
   total: number;
-  cost?: number;  // If pricing is configured
+  cost?: number; // If pricing is configured
 }
 
 // ============================================================================
@@ -327,11 +313,11 @@ export interface AgentUIState {
   warnings: string[];
 }
 
-export type StatusUpdateType = 
-  | 'phase_change' 
-  | 'step_complete' 
-  | 'token_update' 
-  | 'warning' 
+export type StatusUpdateType =
+  | 'phase_change'
+  | 'step_complete'
+  | 'token_update'
+  | 'warning'
   | 'error';
 
 export interface StatusUpdateEvent {

@@ -9,7 +9,12 @@ interface SettingsViewProps {
 
 const MODEL_OPTIONS: Record<string, string[]> = {
   openai: ['gpt-5.1', 'gpt-5-mini', 'gpt-5-nano', 'gpt-4.1', 'gpt-4o'],
-  anthropic: ['claude-sonnet-4-5-20250929', 'claude-haiku-4-5-20251001', 'claude-opus-4-5-20251101', 'claude-3-7-sonnet-latest'],
+  anthropic: [
+    'claude-sonnet-4-5-20250929',
+    'claude-haiku-4-5-20251001',
+    'claude-opus-4-5-20251101',
+    'claude-3-7-sonnet-latest',
+  ],
   gemini: ['gemini-3.0-pro', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
 };
 
@@ -23,7 +28,9 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
   const [searchProvider, setSearchProvider] = useState<'serpapi' | 'google'>(
     settings?.searchConfig?.provider ?? 'serpapi'
   );
-  const [searchEngineId, setSearchEngineId] = useState(settings?.searchConfig?.searchEngineId ?? '');
+  const [searchEngineId, setSearchEngineId] = useState(
+    settings?.searchConfig?.searchEngineId ?? ''
+  );
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   useEffect(() => {
@@ -45,7 +52,11 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
           ? { provider: llmProvider, apiKey: llmApiKey, model: llmModel }
           : undefined,
         searchConfig: searchApiKey
-          ? { provider: searchProvider, apiKey: searchApiKey, searchEngineId: searchEngineId || undefined }
+          ? {
+              provider: searchProvider,
+              apiKey: searchApiKey,
+              searchEngineId: searchEngineId || undefined,
+            }
           : undefined,
       };
       await saveSettings(newSettings);
@@ -97,7 +108,11 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
           disabled={saveStatus === 'saving'}
           className="flex-1 py-2.5 px-4 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
-          {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? '✓ Saved!' : 'Save Settings'}
+          {saveStatus === 'saving'
+            ? 'Saving...'
+            : saveStatus === 'saved'
+              ? '✓ Saved!'
+              : 'Save Settings'}
         </button>
         <button
           onClick={handleClear}
@@ -112,7 +127,8 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
       )}
 
       <p className="text-xs text-gray-500 pt-2">
-        🔒 API keys are stored locally and never sent to third-party servers other than the configured API endpoints.
+        🔒 API keys are stored locally and never sent to third-party servers other than the
+        configured API endpoints.
       </p>
     </div>
   );
@@ -127,7 +143,14 @@ interface LLMSectionProps {
   onApiKeyChange: (key: string) => void;
 }
 
-function LLMSection({ provider, model, apiKey, onProviderChange, onModelChange, onApiKeyChange }: LLMSectionProps) {
+function LLMSection({
+  provider,
+  model,
+  apiKey,
+  onProviderChange,
+  onModelChange,
+  onApiKeyChange,
+}: LLMSectionProps) {
   return (
     <section>
       <h3 className="text-sm font-semibold text-gray-800 mb-3">🤖 LLM Configuration</h3>
@@ -152,7 +175,9 @@ function LLMSection({ provider, model, apiKey, onProviderChange, onModelChange, 
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             {MODEL_OPTIONS[provider].map((m) => (
-              <option key={m} value={m}>{m}</option>
+              <option key={m} value={m}>
+                {m}
+              </option>
             ))}
           </select>
         </div>
@@ -180,7 +205,14 @@ interface SearchSectionProps {
   onSearchEngineIdChange: (id: string) => void;
 }
 
-function SearchSection({ provider, apiKey, searchEngineId, onProviderChange, onApiKeyChange, onSearchEngineIdChange }: SearchSectionProps) {
+function SearchSection({
+  provider,
+  apiKey,
+  searchEngineId,
+  onProviderChange,
+  onApiKeyChange,
+  onSearchEngineIdChange,
+}: SearchSectionProps) {
   return (
     <section>
       <h3 className="text-sm font-semibold text-gray-800 mb-3">🔍 Search Configuration</h3>
@@ -208,7 +240,9 @@ function SearchSection({ provider, apiKey, searchEngineId, onProviderChange, onA
         </div>
         {provider === 'google' && (
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Search Engine ID (cx)</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Search Engine ID (cx)
+            </label>
             <input
               type="text"
               value={searchEngineId}

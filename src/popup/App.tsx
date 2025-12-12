@@ -58,9 +58,7 @@ function App() {
           />
         )}
         {activeTab === 'chat' && <ChatView />}
-        {activeTab === 'settings' && (
-          <SettingsView settings={settings} setSettings={setSettings} />
-        )}
+        {activeTab === 'settings' && <SettingsView settings={settings} setSettings={setSettings} />}
       </main>
     </div>
   );

@@ -107,9 +107,9 @@ export function extractPageContent(document: Document): ExtractedContent {
 
   // Try to find main content area using common selectors
   const mainContent = findMainContent(document);
-  
+
   // Clean the HTML and extract text
-  const mainText = mainContent 
+  const mainText = mainContent
     ? cleanHtml(mainContent.outerHTML)
     : cleanHtml(document.body?.outerHTML || '');
 
@@ -173,7 +173,7 @@ function findLargestTextBlock(root: Element | null): Element | null {
 
   // Check paragraphs and divs for text content
   const candidates = root.querySelectorAll('p, div, section');
-  
+
   for (const element of candidates) {
     // Skip if it's a navigation element
     if (isNavigationElement(element)) continue;
@@ -212,7 +212,12 @@ function isNavigationElement(element: Element): boolean {
  * Optionally preserves start and/or end sections.
  */
 export function truncateToTokenLimit(text: string, options: TruncationOptions): string {
-  const { maxTokens, preserveStart = true, preserveEnd = false, encoding = 'cl100k_base' } = options;
+  const {
+    maxTokens,
+    preserveStart = true,
+    preserveEnd = false,
+    encoding = 'cl100k_base',
+  } = options;
 
   if (!text || maxTokens <= 0) {
     return '';
@@ -231,11 +236,11 @@ export function truncateToTokenLimit(text: string, options: TruncationOptions): 
   // Preserve both start and end: split tokens between them
   const halfTokens = Math.floor(maxTokens / 2);
   const startText = truncateToTokens(text, halfTokens, encoding);
-  
+
   // For end, we need to work backwards - take last portion
   const words = text.split(/\s+/);
   let endText = '';
-  
+
   for (let i = words.length - 1; i >= 0; i--) {
     const candidate = words.slice(i).join(' ');
     const candidateTokens = countTokens(candidate, encoding);
@@ -248,7 +253,6 @@ export function truncateToTokenLimit(text: string, options: TruncationOptions): 
 
   return `${startText}\n\n[...content truncated...]\n\n${endText}`;
 }
-
 
 /**
  * Context window size in characters (before and after selection).
@@ -308,7 +312,10 @@ export function extractContextWindow(
  * Find a suitable container element with enough context.
  * Walks up the DOM tree to find an element with substantial text content.
  */
-function findContextContainer(element: Element | null, minTextLength: number = 200): Element | null {
+function findContextContainer(
+  element: Element | null,
+  minTextLength: number = 200
+): Element | null {
   if (!element) return null;
 
   let current: Element | null = element;
@@ -350,9 +357,8 @@ export function getSelectionWithContext(selection: Selection | null): SelectionC
   const container = range.commonAncestorContainer;
 
   // Get the text content of the container element
-  const initialElement = container.nodeType === Node.TEXT_NODE
-    ? container.parentElement
-    : container as Element;
+  const initialElement =
+    container.nodeType === Node.TEXT_NODE ? container.parentElement : (container as Element);
 
   if (!initialElement) {
     return {
@@ -365,7 +371,7 @@ export function getSelectionWithContext(selection: Selection | null): SelectionC
 
   // Find a container with enough context (at least 200 chars or 2x context window)
   const contextContainer = findContextContainer(initialElement, CONTEXT_WINDOW_SIZE * 2);
-  
+
   if (!contextContainer) {
     return {
       selectedText,
@@ -386,11 +392,7 @@ export function getSelectionWithContext(selection: Selection | null): SelectionC
  * Find the character offset of the selection start within a container element.
  */
 function findSelectionStart(container: Element, range: Range): number {
-  const treeWalker = document.createTreeWalker(
-    container,
-    NodeFilter.SHOW_TEXT,
-    null
-  );
+  const treeWalker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
 
   let offset = 0;
   let node: Node | null;

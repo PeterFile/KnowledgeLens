@@ -111,10 +111,7 @@ function showScreenshotOverlay(): void {
 
   const container = getShadowContainer(SCREENSHOT_OVERLAY_ID);
   container.render(
-    <ScreenshotOverlay
-      onCapture={handleScreenshotCapture}
-      onCancel={hideScreenshotOverlay}
-    />
+    <ScreenshotOverlay onCapture={handleScreenshotCapture} onCancel={hideScreenshotOverlay} />
   );
 }
 
@@ -171,9 +168,7 @@ function getFavicon(): string {
  */
 function showProcessingPanel(screenshot: ScreenshotResult): void {
   const container = getShadowContainer(PROCESSING_PANEL_ID);
-  container.render(
-    <ProcessingPanel screenshot={screenshot} onClose={hideProcessingPanel} />
-  );
+  container.render(<ProcessingPanel screenshot={screenshot} onClose={hideProcessingPanel} />);
 }
 
 /**

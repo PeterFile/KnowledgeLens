@@ -17,22 +17,21 @@ const API_ENDPOINTS = {
   google: 'https://www.googleapis.com/customsearch/v1',
 } as const;
 
-
 const DEFAULT_MAX_TOKENS: Record<string, number> = {
   // --- OpenAI Models (Generation 5) ---
-  'gpt-5.1': 400000,  
-  'gpt-5-mini': 400000, 
+  'gpt-5.1': 400000,
+  'gpt-5-mini': 400000,
   'gpt-5-nano': 400000,
-  'gpt-4.1': 1000000, 
+  'gpt-4.1': 1000000,
   // Legacy (Keep for backward compatibility)
   'gpt-4o': 128000,
-  
+
   // --- Anthropic Claude Models (Generation 4.5) ---
   'claude-sonnet-4-5-20250929': 500000,
-  'claude-haiku-4-5-20251001': 500000, 
+  'claude-haiku-4-5-20251001': 500000,
   'claude-opus-4-5-20251101': 500000,
   // Legacy (Deprecated but may still work briefly)
-  'claude-3-7-sonnet-latest': 200000, 
+  'claude-3-7-sonnet-latest': 200000,
 
   // --- Google Gemini Models (Generation 3.0 & 2.5) ---
   'gemini-3.0-pro': 2000000,
@@ -226,7 +225,6 @@ async function callGeminiWithMessages(
   return parseSSEStream(response, onToken, 'gemini');
 }
 
-
 /**
  * Parse Server-Sent Events stream from LLM providers
  */
@@ -309,7 +307,6 @@ function extractChunkContent(
       return null;
   }
 }
-
 
 /**
  * Multimodal LLM call with image support (for vision models)
@@ -456,7 +453,6 @@ async function callAnthropicWithImage(
   };
 }
 
-
 /**
  * Gemini vision API call
  */
@@ -511,7 +507,6 @@ async function callGeminiWithImage(
     content: data.candidates?.[0]?.content?.parts?.[0]?.text ?? '',
   };
 }
-
 
 /**
  * Search the web using configured search provider
@@ -607,8 +602,8 @@ export function buildSearchEnhancedPrompt(
   searchResults: SearchResult[]
 ): string {
   const searchContext = searchResults
-    .map((result, index) =>
-      `[${index + 1}] ${result.title}\n${result.snippet}\nSource: ${result.url}`
+    .map(
+      (result, index) => `[${index + 1}] ${result.title}\n${result.snippet}\nSource: ${result.url}`
     )
     .join('\n\n');
 

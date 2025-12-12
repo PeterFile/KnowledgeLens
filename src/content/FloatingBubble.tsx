@@ -89,11 +89,7 @@ export function FloatingBubble({ position, onExplain, onSearch }: FloatingBubble
   };
 
   return (
-    <div
-      style={bubbleStyle}
-      data-knowledgelens="bubble"
-      className="inline-flex items-center gap-1"
-    >
+    <div style={bubbleStyle} data-knowledgelens="bubble" className="inline-flex items-center gap-1">
       {/* Main AI button */}
       <button
         onClick={handleMainClick}

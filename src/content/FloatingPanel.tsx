@@ -270,9 +270,8 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
   const [content, setContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [requestId, setRequestId] = useState<string | null>(null);
-  // sessionId is used for agent operations (set when agent_execute is called)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  // sessionId is used for agent operations (will be set when agent_execute is called in future)
+  const [sessionId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 

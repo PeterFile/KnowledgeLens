@@ -16,6 +16,9 @@ interface SelectionBox {
   endY: number;
 }
 
+// Custom crosshair cursor (white with black outline for visibility)
+const CROSSHAIR_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cline x1='16' y1='0' x2='16' y2='32' stroke='white' stroke-width='2'/%3E%3Cline x1='0' y1='16' x2='32' y2='16' stroke='white' stroke-width='2'/%3E%3Cline x1='16' y1='0' x2='16' y2='32' stroke='%234F46E5' stroke-width='1'/%3E%3Cline x1='0' y1='16' x2='32' y2='16' stroke='%234F46E5' stroke-width='1'/%3E%3Ccircle cx='16' cy='16' r='3' fill='none' stroke='%234F46E5' stroke-width='1'/%3E%3C/svg%3E") 16 16, crosshair`;
+
 // Close icon
 const CloseIcon = () => (
   <svg
@@ -149,22 +152,55 @@ export function ScreenshotOverlay({ onCapture, onCancel }: ScreenshotOverlayProp
     <div
       ref={overlayRef}
       data-knowledgelens="screenshot-overlay"
-      className="fixed inset-0 z-[999998] cursor-crosshair select-none"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 999998,
+        cursor: CROSSHAIR_CURSOR,
+        userSelect: 'none',
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+      }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
     >
       {/* Instructions */}
       <div
-        className="fixed top-4 left-1/2 -translate-x-1/2 bg-white rounded-lg shadow-lg px-4 py-2 flex items-center gap-3 z-[999999]"
-        style={{ transform: 'translateX(-50%)' }}
+        style={{
+          position: 'fixed',
+          top: '16px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          padding: '8px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          zIndex: 999999,
+        }}
       >
-        <span className="text-sm text-gray-700">Drag to select a region • Press ESC to cancel</span>
+        <span style={{ fontSize: '14px', color: '#374151' }}>
+          Drag to select a region • Press ESC to cancel
+        </span>
         <button
           data-cancel-button
           onClick={onCancel}
-          className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 cursor-pointer transition border-0 bg-transparent"
+          style={{
+            padding: '4px',
+            borderRadius: '4px',
+            border: 'none',
+            background: 'transparent',
+            color: '#6b7280',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
           title="Cancel"
         >
           <CloseIcon />

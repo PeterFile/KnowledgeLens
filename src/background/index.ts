@@ -1096,6 +1096,78 @@ async function handleAgentGetStatus(
 }
 
 // ============================================================================
+// Keyboard Shortcut Handler
+// Requirements: 5.1 - Ctrl+Shift+X triggers screenshot overlay
+// ============================================================================
+
+/**
+ * Check if a URL supports content script injection
+ */
+function isContentScriptSupported(url: string | undefined): boolean {
+  if (!url) return false;
+  // Content scripts cannot run on chrome://, edge://, about:, or extension pages
+  return (
+    !url.startsWith('chrome://') &&
+    !url.startsWith('chrome-extension://') &&
+    !url.startsWith('edge://') &&
+    !url.startsWith('about:') &&
+    !url.startsWith('devtools://')
+  );
+}
+
+chrome.commands.onCommand.addListener(async (command) => {
+  console.log('Command received:', command);
+
+  if (command === 'take-screenshot') {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      console.log('Active tab:', tab?.id, tab?.url);
+
+      if (!tab?.id) {
+        console.error('No active tab found');
+        return;
+      }
+
+      if (!isContentScriptSupported(tab.url)) {
+        console.warn('Content script not supported on this page:', tab.url);
+        // Could show a notification to user here
+        return;
+      }
+
+      // Send message to content script to show screenshot overlay
+      chrome.tabs.sendMessage(tab.id, { action: 'activate_screenshot' }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            'Failed to send message to content script:',
+            chrome.runtime.lastError.message
+          );
+          // Content script might not be loaded, try injecting it
+        } else {
+          console.log('Screenshot activation response:', response);
+        }
+      });
+    } catch (error) {
+      console.error('Failed to activate screenshot:', error);
+    }
+  }
+});
+
+// Check for shortcut conflicts on install
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
+    chrome.commands.getAll((commands) => {
+      for (const { name, shortcut } of commands) {
+        if (shortcut === '') {
+          console.warn(`Command "${name}" has no shortcut assigned (possible conflict)`);
+        } else {
+          console.log(`Command "${name}" registered with shortcut: ${shortcut}`);
+        }
+      }
+    });
+  }
+});
+
+// ============================================================================
 // Message Router
 // ============================================================================
 

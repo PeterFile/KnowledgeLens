@@ -4,6 +4,7 @@
 
 import type { ScreenshotRegion } from '../types';
 
+// Path relative to extension root (matches build output structure)
 const OFFSCREEN_DOCUMENT_PATH = 'src/offscreen/offscreen.html';
 
 /**

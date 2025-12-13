@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { StoredSettings } from '../../types';
 import { saveSettings, clearSettings } from '../../lib/storage';
 
@@ -36,7 +36,6 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
   const [searchEngineId, setSearchEngineId] = useState(
     settings?.searchConfig?.searchEngineId ?? ''
   );
-  // Agent settings
   const [tokenBudget, setTokenBudget] = useState(
     settings?.agentSettings?.tokenBudget ?? DEFAULT_TOKEN_BUDGET
   );
@@ -107,270 +106,171 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
   };
 
   return (
-    <div className="p-4 space-y-6">
-      <LLMSection
-        provider={llmProvider}
-        model={llmModel}
-        apiKey={llmApiKey}
-        onProviderChange={handleProviderChange}
-        onModelChange={setLlmModel}
-        onApiKeyChange={setLlmApiKey}
-      />
+    <div className="p-5 space-y-6 pb-20">
+      <Section title="AI Model Configuration">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider">Provider</label>
+              <select
+                value={llmProvider}
+                onChange={(e) => handleProviderChange(e.target.value as any)}
+                className="select-brutal"
+              >
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="gemini">Gemini</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider">Model</label>
+              <select
+                value={llmModel}
+                onChange={(e) => setLlmModel(e.target.value)}
+                className="select-brutal"
+              >
+                {MODEL_OPTIONS[llmProvider].map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider">API Key</label>
+            <input
+              type="password"
+              value={llmApiKey}
+              onChange={(e) => setLlmApiKey(e.target.value)}
+              placeholder="sk-..."
+              className="input-brutal"
+            />
+          </div>
+        </div>
+      </Section>
 
-      <SearchSection
-        provider={searchProvider}
-        apiKey={searchApiKey}
-        searchEngineId={searchEngineId}
-        onProviderChange={setSearchProvider}
-        onApiKeyChange={setSearchApiKey}
-        onSearchEngineIdChange={setSearchEngineId}
-      />
+      <Section title="Search Configuration">
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider">Provider</label>
+            <select
+              value={searchProvider}
+              onChange={(e) => setSearchProvider(e.target.value as any)}
+              className="select-brutal"
+            >
+              <option value="serpapi">SerpApi (Google)</option>
+              <option value="google">Google Custom Search</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider">API Key</label>
+            <input
+              type="password"
+              value={searchApiKey}
+              onChange={(e) => setSearchApiKey(e.target.value)}
+              placeholder="Key..."
+              className="input-brutal"
+            />
+          </div>
+          {searchProvider === 'google' && (
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider">
+                Engine ID (cx)
+              </label>
+              <input
+                type="text"
+                value={searchEngineId}
+                onChange={(e) => setSearchEngineId(e.target.value)}
+                placeholder="0123..."
+                className="input-brutal"
+              />
+            </div>
+          )}
+        </div>
+      </Section>
 
-      <AgentSection
-        tokenBudget={tokenBudget}
-        maxSteps={maxSteps}
-        maxRetries={maxRetries}
-        onTokenBudgetChange={setTokenBudget}
-        onMaxStepsChange={setMaxSteps}
-        onMaxRetriesChange={setMaxRetries}
-      />
+      <Section title="Agent Parameters">
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <label className="text-[10px] font-bold uppercase tracking-wider">Token Budget</label>
+              <span className="text-[10px] font-mono font-bold bg-black text-white px-1">
+                {tokenBudget.toLocaleString()}
+              </span>
+            </div>
+            <input
+              type="range"
+              min="10000"
+              max="500000"
+              step="10000"
+              value={tokenBudget}
+              onChange={(e) => setTokenBudget(Number(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-none appearance-none cursor-pointer border border-black accent-black"
+            />
+          </div>
 
-      <div className="flex gap-3 pt-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider">Max Steps</label>
+              <select
+                value={maxSteps}
+                onChange={(e) => setMaxSteps(Number(e.target.value))}
+                className="select-brutal"
+              >
+                {[3, 5, 7, 10].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider">Retries</label>
+              <select
+                value={maxRetries}
+                onChange={(e) => setMaxRetries(Number(e.target.value))}
+                className="select-brutal"
+              >
+                {[1, 2, 3].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      {/* Floating Action Bar */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-black flex gap-3 z-20">
         <button
           onClick={handleSave}
           disabled={saveStatus === 'saving'}
-          className="flex-1 py-2.5 px-4 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className={`flex-1 btn-brutal ${saveStatus === 'saved' ? 'bg-emerald-500 text-black border-black' : 'bg-black text-white border-black'}`}
         >
-          {saveStatus === 'saving'
-            ? 'Saving...'
-            : saveStatus === 'saved'
-              ? '✓ Saved!'
-              : 'Save Settings'}
+          {saveStatus === 'saving' ? 'SAVING...' : saveStatus === 'saved' ? 'SAVED' : 'SAVE CONFIG'}
         </button>
         <button
           onClick={handleClear}
-          className="py-2.5 px-4 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+          className="btn-brutal bg-white text-black hover:bg-red-50 hover:text-red-600 hover:border-red-600"
+          title="Reset"
         >
-          Clear All
+          RESET
         </button>
       </div>
-
-      {saveStatus === 'error' && (
-        <p className="text-sm text-red-600">Failed to save settings. Please try again.</p>
-      )}
-
-      <p className="text-xs text-gray-500 pt-2">
-        🔒 API keys are stored locally and never sent to third-party servers other than the
-        configured API endpoints.
-      </p>
     </div>
   );
 }
 
-interface LLMSectionProps {
-  provider: 'openai' | 'anthropic' | 'gemini';
-  model: string;
-  apiKey: string;
-  onProviderChange: (provider: 'openai' | 'anthropic' | 'gemini') => void;
-  onModelChange: (model: string) => void;
-  onApiKeyChange: (key: string) => void;
-}
-
-function LLMSection({
-  provider,
-  model,
-  apiKey,
-  onProviderChange,
-  onModelChange,
-  onApiKeyChange,
-}: LLMSectionProps) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section>
-      <h3 className="text-sm font-semibold text-gray-800 mb-3">🤖 LLM Configuration</h3>
-      <div className="space-y-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Provider</label>
-          <select
-            value={provider}
-            onChange={(e) => onProviderChange(e.target.value as 'openai' | 'anthropic' | 'gemini')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="openai">OpenAI</option>
-            <option value="anthropic">Anthropic</option>
-            <option value="gemini">Google Gemini</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Model</label>
-          <select
-            value={model}
-            onChange={(e) => onModelChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            {MODEL_OPTIONS[provider].map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">API Key</label>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => onApiKeyChange(e.target.value)}
-            placeholder="Enter your API key"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-interface SearchSectionProps {
-  provider: 'serpapi' | 'google';
-  apiKey: string;
-  searchEngineId: string;
-  onProviderChange: (provider: 'serpapi' | 'google') => void;
-  onApiKeyChange: (key: string) => void;
-  onSearchEngineIdChange: (id: string) => void;
-}
-
-function SearchSection({
-  provider,
-  apiKey,
-  searchEngineId,
-  onProviderChange,
-  onApiKeyChange,
-  onSearchEngineIdChange,
-}: SearchSectionProps) {
-  return (
-    <section>
-      <h3 className="text-sm font-semibold text-gray-800 mb-3">🔍 Search Configuration</h3>
-      <div className="space-y-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Provider</label>
-          <select
-            value={provider}
-            onChange={(e) => onProviderChange(e.target.value as 'serpapi' | 'google')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="serpapi">SerpApi</option>
-            <option value="google">Google Custom Search</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">API Key</label>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => onApiKeyChange(e.target.value)}
-            placeholder="Enter your Search API key"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-        {provider === 'google' && (
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Search Engine ID (cx)
-            </label>
-            <input
-              type="text"
-              value={searchEngineId}
-              onChange={(e) => onSearchEngineIdChange(e.target.value)}
-              placeholder="Enter your Custom Search Engine ID"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-// Agent settings section
-interface AgentSectionProps {
-  tokenBudget: number;
-  maxSteps: number;
-  maxRetries: number;
-  onTokenBudgetChange: (budget: number) => void;
-  onMaxStepsChange: (steps: number) => void;
-  onMaxRetriesChange: (retries: number) => void;
-}
-
-function AgentSection({
-  tokenBudget,
-  maxSteps,
-  maxRetries,
-  onTokenBudgetChange,
-  onMaxStepsChange,
-  onMaxRetriesChange,
-}: AgentSectionProps) {
-  // Format token budget for display
-  const formatBudget = (value: number) => {
-    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-    if (value >= 1000) return `${(value / 1000).toFixed(0)}K`;
-    return value.toString();
-  };
-
-  return (
-    <section>
-      <h3 className="text-sm font-semibold text-gray-800 mb-3">🤖 Agent Configuration</h3>
-      <div className="space-y-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
-            Token Budget ({formatBudget(tokenBudget)} tokens)
-          </label>
-          <input
-            type="range"
-            min="10000"
-            max="500000"
-            step="10000"
-            value={tokenBudget}
-            onChange={(e) => onTokenBudgetChange(Number(e.target.value))}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-          />
-          <div className="flex justify-between text-xs text-gray-400 mt-1">
-            <span>10K</span>
-            <span>500K</span>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Max Steps</label>
-            <select
-              value={maxSteps}
-              onChange={(e) => onMaxStepsChange(Number(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              {[3, 5, 7, 10].map((n) => (
-                <option key={n} value={n}>
-                  {n} steps
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Max Retries</label>
-            <select
-              value={maxRetries}
-              onChange={(e) => onMaxRetriesChange(Number(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              {[1, 2, 3, 5].map((n) => (
-                <option key={n} value={n}>
-                  {n} retries
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <p className="text-xs text-gray-500">
-          💡 Higher limits allow more thorough analysis but consume more tokens.
-        </p>
-      </div>
-    </section>
+    <div className="card-brutal">
+      <h3 className="font-bold text-xs uppercase mb-4 border-b border-gray-200 pb-2 tracking-wider text-gray-500">
+        {title}
+      </h3>
+      <div>{children}</div>
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import type { StoredSettings, StreamingMessage, AgentStatusMessage } from '../../types';
 import type { AgentPhase } from '../../lib/agent/types';
 import { SkeletonLoader } from './SkeletonLoader';
@@ -48,10 +48,8 @@ export function SummaryView({
     tokenUsage: { input: 0, output: 0 },
   });
 
-  // Token budget from settings (default 100k)
   const tokenBudget = settings?.llmConfig?.maxContextTokens ?? 100000;
 
-  // Listen for agent status updates
   useEffect(() => {
     const handleAgentMessage = (message: AgentStatusMessage) => {
       if (!state.sessionId || message.sessionId !== state.sessionId) return;
@@ -98,7 +96,7 @@ export function SummaryView({
       setState({
         status: 'error',
         content: '',
-        error: 'Please configure your LLM API key in Settings first.',
+        error: 'API Key missing. Please configure in settings.',
       });
       return;
     }
@@ -198,25 +196,39 @@ export function SummaryView({
   };
 
   return (
-    <div className="p-4 h-full flex flex-col">
+    <div className="p-6 h-full flex flex-col gap-6">
       {state.status === 'idle' && (
-        <button
-          onClick={handleSummarize}
-          className="w-full py-3 px-4 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-        >
-          📄 Summarize This Page
-        </button>
+        <div className="flex flex-col items-center justify-center h-full gap-6 text-center">
+          <div className="w-16 h-16 bg-white border border-black flex items-center justify-center shadow-[4px_4px_0_0_#000]">
+            <span className="text-2xl">📄</span>
+          </div>
+          <div>
+            <h3 className="text-xl font-bold mb-2">Page Summary</h3>
+            <p className="text-xs text-gray-500 max-w-[200px] mx-auto leading-relaxed uppercase tracking-wide">
+              Extract insights from the current page content.
+            </p>
+          </div>
+          <button
+            onClick={handleSummarize}
+            className="btn-brutal bg-black text-white hover:bg-gray-800 w-full py-3"
+          >
+            START AGENT
+          </button>
+        </div>
       )}
 
       {state.status === 'loading' && (
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col gap-4">
+          <div className="text-xs font-mono text-gray-500 uppercase tracking-wider border-b border-black pb-1">
+            Initializing...
+          </div>
           <SkeletonLoader />
           {timeoutWarning && <TimeoutWarning onCancel={handleCancel} onRetry={handleSummarize} />}
         </div>
       )}
 
       {state.status === 'agent_running' && (
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col gap-4">
           <AgentStatusDisplay
             phase={agentState.phase}
             stepNumber={agentState.stepNumber}
@@ -229,38 +241,37 @@ export function SummaryView({
             onCancel={handleCancel}
           />
           {state.content && (
-            <div className="flex-1 overflow-auto prose prose-sm max-w-none mt-3 opacity-80">
+            <div className="flex-1 overflow-auto bg-white border border-black p-4 shadow-[2px_2px_0_0_#000]">
               <MarkdownRenderer content={state.content} />
-              <span className="inline-block w-2 h-4 bg-blue-500 animate-pulse ml-1" />
             </div>
           )}
         </div>
       )}
 
       {(state.status === 'streaming' || state.status === 'success') && (
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col h-full gap-4">
           {timeoutWarning && state.status === 'streaming' && (
             <TimeoutWarning onCancel={handleCancel} onRetry={handleSummarize} />
           )}
-          <div className="flex-1 overflow-auto prose prose-sm max-w-none">
+
+          <div className="flex-1 overflow-auto bg-white border border-black p-5 shadow-[4px_4px_0_0_#000]">
+            <div className="flex items-center gap-2 mb-4 border-b border-gray-100 pb-3">
+              <div className="w-2 h-2 bg-green-500 border border-black"></div>
+              <span className="text-xs font-bold text-black uppercase">Report Output</span>
+            </div>
             <MarkdownRenderer content={state.content} />
-            {state.status === 'streaming' && (
-              <span className="inline-block w-2 h-4 bg-blue-500 animate-pulse ml-1" />
-            )}
           </div>
+
           {state.status === 'success' && (
-            <div className="flex gap-2 mt-4 pt-4 border-t">
-              <button
-                onClick={handleSummarize}
-                className="flex-1 py-2 px-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                🔄 Retry
+            <div className="flex gap-3">
+              <button onClick={handleSummarize} className="flex-1 btn-brutal text-xs">
+                RETRY
               </button>
               <button
                 onClick={handleCopy}
-                className="flex-1 py-2 px-3 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900"
+                className="flex-1 btn-brutal bg-black text-white hover:bg-gray-900 text-xs"
               >
-                {copied ? '✓ Copied!' : '📋 Copy'}
+                {copied ? 'COPIED' : 'COPY'}
               </button>
             </div>
           )}

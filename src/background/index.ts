@@ -310,6 +310,9 @@ async function handleExplain(
     tabId
   );
 
+  // Track if agent loop is used for status updates
+  let usedAgent = false;
+
   try {
     // Use the new goal handler for explanation
     const result = await handleExplainGoal(
@@ -321,7 +324,7 @@ async function handleExplain(
       settings.llmConfig,
       (status) => {
         // Send agent status updates if using agent loop
-        if (result?.usedAgent) {
+        if (usedAgent) {
           sendAgentStatusMessage(
             {
               type: 'agent_status_update',
@@ -338,6 +341,8 @@ async function handleExplain(
       },
       request.controller.signal
     );
+
+    usedAgent = result.usedAgent;
 
     // Send the final response as streaming chunks for UI compatibility
     const chunks = result.response.match(/.{1,100}/g) || [result.response];

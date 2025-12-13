@@ -179,12 +179,13 @@ function hideProcessingPanel(): void {
 }
 
 /**
- * Handle click outside to close sidebar.
+ * Handle click outside to close bubble (but not panel).
+ * Panel should only be closed via the close button to prevent accidental loss of results.
  */
 function handleDocumentClick(event: MouseEvent): void {
   const target = event.target as HTMLElement;
 
-  // Don't close if clicking inside our UI
+  // Don't do anything if clicking inside our UI
   if (target.closest('[data-knowledgelens]')) return;
 
   // Check if click is inside shadow DOM containers
@@ -200,9 +201,10 @@ function handleDocumentClick(event: MouseEvent): void {
     return;
   }
 
-  // Close panel if open and clicking outside
-  if (sidebarMode) {
-    hidePanel();
+  // Only hide bubble when clicking outside, keep panel open
+  // Panel should be closed explicitly via close button to prevent losing results
+  if (!sidebarMode) {
+    hideBubble();
   }
 }
 

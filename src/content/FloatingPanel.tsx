@@ -270,8 +270,6 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
   const [content, setContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [requestId, setRequestId] = useState<string | null>(null);
-  // sessionId is used for agent operations (will be set when agent_execute is called in future)
-  const [sessionId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -319,16 +317,18 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
             break;
           case 'streaming_end':
             setStatus('done');
+            setAgentPhase('idle');
             break;
           case 'streaming_error':
             setError(streamMsg.error || 'An error occurred');
             setStatus('error');
+            setAgentPhase('idle');
             break;
         }
       }
 
-      // Handle agent status messages
-      if ('sessionId' in message && sessionId && message.sessionId === sessionId) {
+      // Handle agent status messages - use requestId to match (background uses request.id as sessionId)
+      if ('sessionId' in message && requestId && message.sessionId === requestId) {
         const agentMsg = message as AgentStatusMessage;
         switch (agentMsg.type) {
           case 'agent_status_update':
@@ -356,7 +356,7 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
     };
     chrome.runtime.onMessage.addListener(handleMessage);
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
-  }, [requestId, sessionId]);
+  }, [requestId]);
 
   useEffect(() => {
     sendRequest();
@@ -364,18 +364,19 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
 
   useEffect(() => {
     return () => {
-      if (requestId)
+      if (requestId) {
         chrome.runtime.sendMessage({ action: 'cancel_request', payload: { requestId } });
-      if (sessionId) chrome.runtime.sendMessage({ action: 'agent_cancel', payload: { sessionId } });
+        // Also cancel agent operation (background uses requestId as sessionId)
+        chrome.runtime.sendMessage({ action: 'agent_cancel', payload: { sessionId: requestId } });
+      }
     };
-  }, [requestId, sessionId]);
+  }, [requestId]);
 
   const handleCancel = () => {
     if (requestId) {
       chrome.runtime.sendMessage({ action: 'cancel_request', payload: { requestId } });
-    }
-    if (sessionId) {
-      chrome.runtime.sendMessage({ action: 'agent_cancel', payload: { sessionId } });
+      // Also cancel agent operation (background uses requestId as sessionId)
+      chrome.runtime.sendMessage({ action: 'agent_cancel', payload: { sessionId: requestId } });
     }
     setStatus('done');
     setAgentPhase('idle');
@@ -395,7 +396,7 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
   const title = mode === 'search' ? 'Search & Explain' : 'AI Explanation';
   const isInteracting = isDragging || isResizing;
 
-  // Modern glassmorphism style
+  // Modern glassmorphism style with Space Grotesk font
   const panelStyle: React.CSSProperties = {
     position: 'fixed',
     left: position.x,
@@ -406,8 +407,8 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
     display: 'flex',
     flexDirection: 'column',
     fontFamily:
-      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-    background: 'rgba(255, 255, 255, 0.95)',
+      '"Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    background: 'rgba(255, 255, 255, 0.98)',
     backdropFilter: 'blur(20px)',
     WebkitBackdropFilter: 'blur(20px)',
     borderRadius: 16,
@@ -774,10 +775,203 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
         </>
       )}
 
-      {/* Animations */}
+      {/* Font import and Markdown styles */}
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        
         @keyframes kl-blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0.3; } }
         @keyframes kl-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        
+        .kl-markdown {
+          font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-size: 14px;
+          line-height: 1.75;
+          color: #1f2937;
+          word-wrap: break-word;
+        }
+        
+        .kl-markdown > *:first-child { margin-top: 0; }
+        .kl-markdown > *:last-child { margin-bottom: 0; }
+        
+        .kl-markdown p {
+          margin: 0 0 1em 0;
+          font-weight: 400;
+        }
+        
+        .kl-markdown h1, .kl-markdown h2, .kl-markdown h3, 
+        .kl-markdown h4, .kl-markdown h5, .kl-markdown h6 {
+          font-family: 'Space Grotesk', sans-serif;
+          font-weight: 600;
+          line-height: 1.4;
+          margin: 1.5em 0 0.75em 0;
+          color: #111827;
+        }
+        
+        .kl-markdown h1 { font-size: 1.5em; }
+        .kl-markdown h2 { font-size: 1.3em; }
+        .kl-markdown h3 { font-size: 1.15em; }
+        .kl-markdown h4 { font-size: 1.05em; }
+        .kl-markdown h5, .kl-markdown h6 { font-size: 1em; }
+        
+        .kl-markdown strong, .kl-markdown b {
+          font-weight: 600;
+          color: #111827;
+        }
+        
+        .kl-markdown em, .kl-markdown i {
+          font-style: italic;
+        }
+        
+        .kl-markdown a {
+          color: #667eea;
+          text-decoration: none;
+          font-weight: 500;
+          border-bottom: 1px solid rgba(102, 126, 234, 0.3);
+          transition: border-color 0.2s, color 0.2s;
+        }
+        
+        .kl-markdown a:hover {
+          color: #764ba2;
+          border-bottom-color: #764ba2;
+        }
+        
+        .kl-markdown ul, .kl-markdown ol {
+          margin: 0.75em 0;
+          padding-left: 1.5em;
+        }
+        
+        .kl-markdown li {
+          margin: 0.4em 0;
+          padding-left: 0.25em;
+        }
+        
+        .kl-markdown li::marker {
+          color: #667eea;
+        }
+        
+        .kl-markdown ul > li {
+          list-style-type: disc;
+        }
+        
+        .kl-markdown ul ul > li {
+          list-style-type: circle;
+        }
+        
+        .kl-markdown ol > li {
+          list-style-type: decimal;
+        }
+        
+        .kl-markdown code {
+          font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+          font-size: 0.875em;
+          background: linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.08) 100%);
+          color: #4c1d95;
+          padding: 0.2em 0.45em;
+          border-radius: 5px;
+          font-weight: 500;
+        }
+        
+        .kl-markdown pre {
+          margin: 1em 0;
+          padding: 1em;
+          background: linear-gradient(135deg, #1e1e2e 0%, #2d2d3f 100%);
+          border-radius: 10px;
+          overflow-x: auto;
+          border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .kl-markdown pre code {
+          font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+          font-size: 0.85em;
+          background: transparent;
+          color: #e2e8f0;
+          padding: 0;
+          border-radius: 0;
+          font-weight: 400;
+          line-height: 1.6;
+        }
+        
+        .kl-markdown blockquote {
+          margin: 1em 0;
+          padding: 0.75em 1em;
+          border-left: 4px solid;
+          border-image: linear-gradient(135deg, #667eea, #764ba2) 1;
+          background: linear-gradient(135deg, rgba(102,126,234,0.05) 0%, rgba(118,75,162,0.05) 100%);
+          border-radius: 0 8px 8px 0;
+          color: #4b5563;
+          font-style: italic;
+        }
+        
+        .kl-markdown blockquote p {
+          margin: 0;
+        }
+        
+        .kl-markdown hr {
+          margin: 1.5em 0;
+          border: none;
+          height: 2px;
+          background: linear-gradient(90deg, transparent, rgba(102,126,234,0.3), transparent);
+        }
+        
+        .kl-markdown table {
+          width: 100%;
+          margin: 1em 0;
+          border-collapse: collapse;
+          font-size: 0.9em;
+          border-radius: 8px;
+          overflow: hidden;
+          border: 1px solid rgba(0,0,0,0.08);
+        }
+        
+        .kl-markdown th {
+          background: linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.1) 100%);
+          font-weight: 600;
+          text-align: left;
+          padding: 0.75em 1em;
+          color: #4c1d95;
+          border-bottom: 2px solid rgba(102,126,234,0.2);
+        }
+        
+        .kl-markdown td {
+          padding: 0.65em 1em;
+          border-bottom: 1px solid rgba(0,0,0,0.06);
+        }
+        
+        .kl-markdown tr:last-child td {
+          border-bottom: none;
+        }
+        
+        .kl-markdown tr:hover td {
+          background: rgba(102,126,234,0.03);
+        }
+        
+        .kl-markdown img {
+          max-width: 100%;
+          height: auto;
+          border-radius: 8px;
+          margin: 0.75em 0;
+        }
+        
+        .kl-markdown del {
+          color: #9ca3af;
+          text-decoration: line-through;
+        }
+        
+        .kl-markdown mark {
+          background: linear-gradient(135deg, rgba(251,191,36,0.3) 0%, rgba(245,158,11,0.3) 100%);
+          color: inherit;
+          padding: 0.1em 0.3em;
+          border-radius: 3px;
+        }
+        
+        .kl-markdown sup, .kl-markdown sub {
+          font-size: 0.75em;
+        }
+        
+        .kl-markdown input[type="checkbox"] {
+          margin-right: 0.5em;
+          accent-color: #667eea;
+        }
       `}</style>
     </div>
   );

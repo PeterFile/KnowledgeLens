@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.1](https://github.com/PeterFile/KnowledgeLens/compare/v0.1.0...v0.1.1) (2025-12-13)
+
+
+### Features
+
+* **background:** integrate agent with background service worker ([#15](https://github.com/PeterFile/KnowledgeLens/issues/15)) ([7295c04](https://github.com/PeterFile/KnowledgeLens/commit/7295c048b3bd7216e64969bb4f0d3cc8ada870f9))
+* **lib:** add agent state manager for service worker persistence ([#9](https://github.com/PeterFile/KnowledgeLens/issues/9)) ([cdf99e2](https://github.com/PeterFile/KnowledgeLens/commit/cdf99e24f42ad106ffc5489bf69f7796c88f123a))
+* **lib:** add agentic RAG with search fallback behavior ([#12](https://github.com/PeterFile/KnowledgeLens/issues/12)) ([3c7c5e3](https://github.com/PeterFile/KnowledgeLens/commit/3c7c5e387e14d3eaa11808577e1cd842937a1897))
+* **lib:** add context manager with compaction and grounding preservation ([#10](https://github.com/PeterFile/KnowledgeLens/issues/10)) ([44e01bf](https://github.com/PeterFile/KnowledgeLens/commit/44e01bf896ecbace0d1d0b4fc8896dd4912cf5f4))
+* **lib:** implement prompt template system with round-trip serialization ([#7](https://github.com/PeterFile/KnowledgeLens/issues/7)) ([68ecf4b](https://github.com/PeterFile/KnowledgeLens/commit/68ecf4b8cf6c9d3de85195fadaf4d25942198e9b))
+* **lib:** implement ReAct agent loop with property-based tests ([#14](https://github.com/PeterFile/KnowledgeLens/issues/14)) ([967714c](https://github.com/PeterFile/KnowledgeLens/commit/967714cb7ac7b8a2966026c8234683acf02508ee))
+* **lib:** implement token tracker for agent architecture ([#6](https://github.com/PeterFile/KnowledgeLens/issues/6)) ([8aca5be](https://github.com/PeterFile/KnowledgeLens/commit/8aca5be5bfb5d19ac988b20765e3081a4281a323))
+* **lib:** implement tool manager with validation and property tests ([#8](https://github.com/PeterFile/KnowledgeLens/issues/8)) ([102a28a](https://github.com/PeterFile/KnowledgeLens/commit/102a28ae393d758bef122ecbff0be0d8ada79567))
+* **lib:** implement trajectory logger for agent observability ([#13](https://github.com/PeterFile/KnowledgeLens/issues/13)) ([6fb64eb](https://github.com/PeterFile/KnowledgeLens/commit/6fb64ebaaa9df0d921b56b402434768557275828))
+* **lib:** migrate existing features to agent architecture ([#17](https://github.com/PeterFile/KnowledgeLens/issues/17)) ([0858846](https://github.com/PeterFile/KnowledgeLens/commit/0858846887a381f487617a467e2dcd05358949de))
+* **popup:** add agent status display and configuration ([#16](https://github.com/PeterFile/KnowledgeLens/issues/16)) ([64ecb7b](https://github.com/PeterFile/KnowledgeLens/commit/64ecb7bb14dd6b8b179b848fce631a9447d9de63))
+
+
+### Bug Fixes
+
+* **content:** integrate floating panel with agent status updates ([#18](https://github.com/PeterFile/KnowledgeLens/issues/18)) ([223f029](https://github.com/PeterFile/KnowledgeLens/commit/223f029505427bbc46c6064e5d2f1681f1dc5a32))
+* **repo:** rename tag-release.js to .cjs for esm compatibility ([#5](https://github.com/PeterFile/KnowledgeLens/issues/5)) ([beb44cc](https://github.com/PeterFile/KnowledgeLens/commit/beb44cce72eb4395cebd75e5d50738b6093ea69b))
+
+
+### Tests
+
+* **lib:** add property-based tests for reflection storage ([#11](https://github.com/PeterFile/KnowledgeLens/issues/11)) ([9b55bc4](https://github.com/PeterFile/KnowledgeLens/commit/9b55bc497156b01aa7ba5753322d4acc870b8cdc))
+
+
+### Styles
+
+* **repo:** apply brutalist/retro UI redesign across components ([#19](https://github.com/PeterFile/KnowledgeLens/issues/19)) ([83cf209](https://github.com/PeterFile/KnowledgeLens/commit/83cf209404f9817cb8aaa76ad80697b967956288)), closes [#FFFDF5](https://github.com/PeterFile/KnowledgeLens/issues/FFFDF5) [#FF90B3](https://github.com/PeterFile/KnowledgeLens/issues/FF90B3) [#4D79](https://github.com/PeterFile/KnowledgeLens/issues/4D79) [#FFDE59](https://github.com/PeterFile/KnowledgeLens/issues/FFDE59) [#00E055](https://github.com/PeterFile/KnowledgeLens/issues/00E055)
+
 ## 0.1.0 (2025-12-12)
 
 

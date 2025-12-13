@@ -1,15 +1,28 @@
-import { useState, useCallback } from 'react';
-import type { StoredSettings, StreamingMessage } from '../../types';
+import { useState, useCallback, useEffect } from 'react';
+import type { StoredSettings, StreamingMessage, AgentStatusMessage } from '../../types';
+import type { AgentPhase } from '../../lib/agent/types';
 import { SkeletonLoader } from './SkeletonLoader';
 import { TimeoutWarning } from './TimeoutWarning';
 import { ErrorDisplay } from './ErrorDisplay';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { AgentStatusDisplay } from '../../components';
 
 export interface SummaryState {
-  status: 'idle' | 'loading' | 'streaming' | 'success' | 'error';
+  status: 'idle' | 'loading' | 'streaming' | 'success' | 'error' | 'agent_running';
   content: string;
   error?: string;
   requestId?: string;
+  sessionId?: string;
+}
+
+interface AgentState {
+  phase: AgentPhase | 'idle';
+  stepNumber: number;
+  maxSteps: number;
+  tokenUsage: { input: number; output: number };
+  currentTool?: string;
+  degradedMode?: boolean;
+  degradedReason?: string;
 }
 
 interface SummaryViewProps {
@@ -28,6 +41,57 @@ export function SummaryView({
   setTimeoutWarning,
 }: SummaryViewProps) {
   const [copied, setCopied] = useState(false);
+  const [agentState, setAgentState] = useState<AgentState>({
+    phase: 'idle',
+    stepNumber: 0,
+    maxSteps: 5,
+    tokenUsage: { input: 0, output: 0 },
+  });
+
+  // Token budget from settings (default 100k)
+  const tokenBudget = settings?.llmConfig?.maxContextTokens ?? 100000;
+
+  // Listen for agent status updates
+  useEffect(() => {
+    const handleAgentMessage = (message: AgentStatusMessage) => {
+      if (!state.sessionId || message.sessionId !== state.sessionId) return;
+
+      switch (message.type) {
+        case 'agent_status_update':
+          setState((prev) => ({ ...prev, status: 'agent_running' }));
+          setAgentState((prev) => ({
+            ...prev,
+            phase: message.phase ?? prev.phase,
+            stepNumber: message.stepNumber ?? prev.stepNumber,
+            maxSteps: message.maxSteps ?? prev.maxSteps,
+            tokenUsage: message.tokenUsage ?? prev.tokenUsage,
+            currentTool: message.currentTool,
+            degradedMode: message.degradedMode,
+            degradedReason: message.degradedReason,
+          }));
+          break;
+        case 'agent_complete':
+          setState((prev) => ({
+            ...prev,
+            status: 'success',
+            content: message.result ?? prev.content,
+          }));
+          setAgentState((prev) => ({ ...prev, phase: 'idle' }));
+          break;
+        case 'agent_error':
+          setState((prev) => ({
+            ...prev,
+            status: 'error',
+            error: message.error ?? 'Agent error occurred',
+          }));
+          setAgentState((prev) => ({ ...prev, phase: 'idle' }));
+          break;
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleAgentMessage);
+    return () => chrome.runtime.onMessage.removeListener(handleAgentMessage);
+  }, [state.sessionId, setState]);
 
   const handleSummarize = useCallback(async () => {
     if (!settings?.llmConfig?.apiKey) {
@@ -108,9 +172,21 @@ export function SummaryView({
         action: 'cancel_request',
         payload: { requestId: state.requestId },
       });
-      setState({ status: 'idle', content: '' });
-      setTimeoutWarning(false);
     }
+    if (state.sessionId) {
+      chrome.runtime.sendMessage({
+        action: 'agent_cancel',
+        payload: { sessionId: state.sessionId },
+      });
+    }
+    setState({ status: 'idle', content: '' });
+    setTimeoutWarning(false);
+    setAgentState({
+      phase: 'idle',
+      stepNumber: 0,
+      maxSteps: 5,
+      tokenUsage: { input: 0, output: 0 },
+    });
   };
 
   const handleCopy = async () => {
@@ -136,6 +212,28 @@ export function SummaryView({
         <div className="flex-1">
           <SkeletonLoader />
           {timeoutWarning && <TimeoutWarning onCancel={handleCancel} onRetry={handleSummarize} />}
+        </div>
+      )}
+
+      {state.status === 'agent_running' && (
+        <div className="flex-1 flex flex-col">
+          <AgentStatusDisplay
+            phase={agentState.phase}
+            stepNumber={agentState.stepNumber}
+            maxSteps={agentState.maxSteps}
+            tokenUsage={agentState.tokenUsage}
+            budget={tokenBudget}
+            currentTool={agentState.currentTool}
+            degradedMode={agentState.degradedMode}
+            degradedReason={agentState.degradedReason}
+            onCancel={handleCancel}
+          />
+          {state.content && (
+            <div className="flex-1 overflow-auto prose prose-sm max-w-none mt-3 opacity-80">
+              <MarkdownRenderer content={state.content} />
+              <span className="inline-block w-2 h-4 bg-blue-500 animate-pulse ml-1" />
+            </div>
+          )}
         </div>
       )}
 

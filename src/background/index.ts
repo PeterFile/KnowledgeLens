@@ -540,7 +540,8 @@ async function handleCaptureScreenshot(
  */
 async function handleExtractScreenshot(
   payload: ExtractScreenshotPayload,
-  sendResponse: (response: ExtensionResponse) => void
+  sendResponse: (response: ExtensionResponse) => void,
+  tabId?: number
 ): Promise<void> {
   const settings = await getSettings();
   if (!settings?.llmConfig?.apiKey) {
@@ -560,10 +561,13 @@ async function handleExtractScreenshot(
     requestId: request.id,
   });
 
-  sendStreamingMessage({
-    type: 'streaming_start',
-    requestId: request.id,
-  });
+  sendStreamingMessage(
+    {
+      type: 'streaming_start',
+      requestId: request.id,
+    },
+    tabId
+  );
 
   try {
     // Use the new goal handler for screenshot analysis
@@ -592,28 +596,37 @@ async function handleExtractScreenshot(
     // Send the final response as streaming chunks for UI compatibility
     const chunks = result.response.match(/[\s\S]{1,100}/g) || [result.response];
     for (const chunk of chunks) {
-      sendStreamingMessage({
-        type: 'streaming_chunk',
-        requestId: request.id,
-        chunk,
-      });
+      sendStreamingMessage(
+        {
+          type: 'streaming_chunk',
+          requestId: request.id,
+          chunk,
+        },
+        tabId
+      );
     }
 
-    sendStreamingMessage({
-      type: 'streaming_end',
-      requestId: request.id,
-      content: result.response,
-    });
+    sendStreamingMessage(
+      {
+        type: 'streaming_end',
+        requestId: request.id,
+        content: result.response,
+      },
+      tabId
+    );
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       return;
     }
 
-    sendStreamingMessage({
-      type: 'streaming_error',
-      requestId: request.id,
-      error: error instanceof Error ? error.message : 'Failed to extract text from screenshot',
-    });
+    sendStreamingMessage(
+      {
+        type: 'streaming_error',
+        requestId: request.id,
+        error: error instanceof Error ? error.message : 'Failed to extract text from screenshot',
+      },
+      tabId
+    );
   } finally {
     requestManager.complete(request.id);
   }
@@ -1201,7 +1214,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
       return true; // Keep channel open for async response
 
     case 'extract_screenshot':
-      handleExtractScreenshot(message.payload, sendResponse);
+      handleExtractScreenshot(message.payload, sendResponse, tabId);
       return true; // Keep channel open for async response
 
     case 'generate_note_card':

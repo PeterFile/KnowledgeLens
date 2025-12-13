@@ -5,7 +5,7 @@
 // - Generate note cards with metadata and QR codes
 // - Download and copy note cards
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ScreenshotResult, StreamingMessage } from '../types';
 
 interface ProcessingPanelProps {
@@ -264,10 +264,21 @@ export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
   const [noteCard, setNoteCard] = useState<NoteCardResult | null>(null);
   const [noteCardCopied, setNoteCardCopied] = useState(false);
 
+  // Use ref to track requestId for message handler (avoids stale closure)
+  const requestIdRef = useRef<string | null>(null);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    requestIdRef.current = requestId;
+  }, [requestId]);
+
   // Handle streaming messages
   useEffect(() => {
     const handleMessage = (message: StreamingMessage) => {
-      if (!requestId || message.requestId !== requestId) return;
+      const currentRequestId = requestIdRef.current;
+      if (!currentRequestId || message.requestId !== currentRequestId) return;
+
+      console.log('ProcessingPanel received message:', message.type, message.requestId);
 
       switch (message.type) {
         case 'streaming_start':
@@ -291,7 +302,7 @@ export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
 
     chrome.runtime.onMessage.addListener(handleMessage);
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
-  }, [requestId]);
+  }, []); // Empty deps - handler uses ref for latest requestId
 
   // Cancel request on unmount
   useEffect(() => {

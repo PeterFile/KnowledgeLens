@@ -17,18 +17,10 @@ import type {
   AgentExecutePayload,
   AgentCancelPayload,
   AgentGetStatusPayload,
-  SearchResult,
   StoredSettings,
   ChatMessage,
 } from '../types';
-import {
-  callLLMWithMessages,
-  callLLMWithImage,
-  searchWeb,
-  generateSearchQuery,
-  getMaxContextTokens,
-} from '../lib/api';
-import { truncateToTokens, getEncodingForModel } from '../lib/tokenizer';
+import { callLLMWithMessages } from '../lib/api';
 import { loadSettings } from '../lib/storage';
 import * as requestManager from '../lib/request-manager';
 import { captureAndCropScreenshot } from '../lib/screenshot';
@@ -43,6 +35,9 @@ import {
   createContext,
   createEpisodicMemory,
   DEFAULT_AGENT_CONFIG,
+  handleSummarizeGoal,
+  handleExplainGoal,
+  handleScreenshotGoal,
 } from '../lib/agent';
 import type { AgentState, AgentStatus } from '../lib/agent';
 
@@ -193,8 +188,9 @@ function sendAgentStatusMessage(message: AgentStatusMessage, tabId?: number): vo
 
 /**
  * Handle page summarization request
- * Uses structured messages to separate system prompt from user content
- * Requirements: 1.3, 1.4
+ * Uses agent architecture with goal handlers for complex pages
+ * Maintains backward compatibility for simple summaries
+ * Requirements: 1.1, 1.3, 1.4, 1.5
  */
 async function handleSummarize(
   payload: SummarizePayload,
@@ -223,46 +219,45 @@ async function handleSummarize(
     requestId: request.id,
   });
 
-  // Truncate content to fit within context window (reserve 2000 tokens for output)
-  const encoding = getEncodingForModel(settings.llmConfig.provider, settings.llmConfig.model);
-  const maxContentTokens = getMaxContextTokens(settings.llmConfig) - 2000;
-  const safeContent = truncateToTokens(payload.content, maxContentTokens, encoding);
-
-  // Structured messages prevent prompt injection by separating roles
-  const messages: ChatMessage[] = [
-    { role: 'system', content: SYSTEM_PROMPTS.summarize },
-    {
-      role: 'user',
-      content: `Please summarize the following web page content.
-
-Page URL: ${payload.pageUrl}
-
-Content:
-${safeContent}`,
-    },
-  ];
-
   try {
-    let fullContent = '';
-
-    await callLLMWithMessages(
-      messages,
+    // Use the new goal handler which decides between simple and agent-based approach
+    const result = await handleSummarizeGoal(
+      {
+        content: payload.content,
+        pageUrl: payload.pageUrl,
+      },
       settings.llmConfig,
-      (chunk) => {
-        fullContent += chunk;
-        sendStreamingMessage({
-          type: 'streaming_chunk',
-          requestId: request.id,
-          chunk,
-        });
+      (status) => {
+        // Send agent status updates for complex pages
+        if (result?.usedAgent) {
+          sendAgentStatusMessage({
+            type: 'agent_status_update',
+            sessionId: request.id,
+            phase: status.phase,
+            stepNumber: status.stepNumber,
+            maxSteps: status.maxSteps,
+            tokenUsage: status.tokenUsage,
+            currentTool: status.currentTool,
+          });
+        }
       },
       request.controller.signal
     );
 
+    // Send the final response as streaming chunks for UI compatibility
+    const chunks = result.response.match(/.{1,100}/g) || [result.response];
+    for (const chunk of chunks) {
+      sendStreamingMessage({
+        type: 'streaming_chunk',
+        requestId: request.id,
+        chunk,
+      });
+    }
+
     sendStreamingMessage({
       type: 'streaming_end',
       requestId: request.id,
-      content: fullContent,
+      content: result.response,
     });
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
@@ -281,8 +276,8 @@ ${safeContent}`,
 
 /**
  * Handle contextual text explanation request
- * Uses structured messages to separate system prompt from user content
- * Requirements: 3.2, 3.3
+ * Uses agent architecture with goal handlers
+ * Requirements: 1.1, 3.1, 3.2, 3.3
  */
 async function handleExplain(
   payload: ExplainPayload,
@@ -315,46 +310,53 @@ async function handleExplain(
     tabId
   );
 
-  // Structured messages prevent prompt injection
-  const messages: ChatMessage[] = [
-    { role: 'system', content: SYSTEM_PROMPTS.explain },
-    {
-      role: 'user',
-      content: `Please explain the following selected text, considering its surrounding context.
-
-Selected text:
-"${payload.text}"
-
-Surrounding context:
-${payload.context}`,
-    },
-  ];
-
   try {
-    let fullContent = '';
-
-    await callLLMWithMessages(
-      messages,
+    // Use the new goal handler for explanation
+    const result = await handleExplainGoal(
+      {
+        text: payload.text,
+        context: payload.context,
+        useSearch: false, // Simple explanation without search
+      },
       settings.llmConfig,
-      (chunk) => {
-        fullContent += chunk;
-        sendStreamingMessage(
-          {
-            type: 'streaming_chunk',
-            requestId: request.id,
-            chunk,
-          },
-          tabId
-        );
+      (status) => {
+        // Send agent status updates if using agent loop
+        if (result?.usedAgent) {
+          sendAgentStatusMessage(
+            {
+              type: 'agent_status_update',
+              sessionId: request.id,
+              phase: status.phase,
+              stepNumber: status.stepNumber,
+              maxSteps: status.maxSteps,
+              tokenUsage: status.tokenUsage,
+              currentTool: status.currentTool,
+            },
+            tabId
+          );
+        }
       },
       request.controller.signal
     );
+
+    // Send the final response as streaming chunks for UI compatibility
+    const chunks = result.response.match(/.{1,100}/g) || [result.response];
+    for (const chunk of chunks) {
+      sendStreamingMessage(
+        {
+          type: 'streaming_chunk',
+          requestId: request.id,
+          chunk,
+        },
+        tabId
+      );
+    }
 
     sendStreamingMessage(
       {
         type: 'streaming_end',
         requestId: request.id,
-        content: fullContent,
+        content: result.response,
       },
       tabId
     );
@@ -375,26 +377,10 @@ ${payload.context}`,
     requestManager.complete(request.id);
   }
 }
-
-/**
- * Format search results for user message
- */
-function formatSearchResults(results: SearchResult[]): string {
-  if (results.length === 0) {
-    return '';
-  }
-
-  const formatted = results
-    .map((r, i) => `[${i + 1}] ${r.title}\n${r.snippet}\nSource: ${r.url}`)
-    .join('\n\n');
-
-  return `\n\nWeb search results:\n${formatted}`;
-}
-
 /**
  * Handle search-enhanced explanation request
- * Uses structured messages to separate system prompt from user content
- * Requirements: 4.2, 4.3, 4.4
+ * Uses agent architecture with Agentic RAG for search-enhanced explanations
+ * Requirements: 1.1, 4.1, 4.2, 4.3, 4.4
  */
 async function handleSearchEnhance(
   payload: SearchEnhancePayload,
@@ -428,56 +414,28 @@ async function handleSearchEnhance(
   );
 
   try {
-    // Use LLM to generate semantic search query (Agentic approach)
-    let searchResults: SearchResult[] = [];
-
-    if (settings.searchConfig?.apiKey) {
-      try {
-        // Generate search query using LLM for better intent understanding
-        const searchQuery = await generateSearchQuery(
-          payload.text,
-          settings.llmConfig,
-          request.controller.signal
-        );
-
-        searchResults = await searchWeb(
-          searchQuery,
-          settings.searchConfig,
-          request.controller.signal
-        );
-      } catch (searchError) {
-        // Requirement 4.5: Fall back to explanation without search results
-        console.warn('Search failed, falling back to contextual explanation:', searchError);
-      }
-    }
-
-    // Structured messages prevent prompt injection
-    const messages: ChatMessage[] = [
-      { role: 'system', content: SYSTEM_PROMPTS.searchEnhanced },
+    // Use the new goal handler with search enabled
+    // This uses Agentic RAG for search result grading and query rewriting
+    // Requirements: 4.1, 4.2, 4.3, 4.4, 4.5
+    const result = await handleExplainGoal(
       {
-        role: 'user',
-        content: `Please explain the following selected text, incorporating relevant information from the search results if available. Include source citations where appropriate.
-
-Selected text:
-"${payload.text}"
-
-Surrounding context:
-${payload.context}${formatSearchResults(searchResults)}`,
+        text: payload.text,
+        context: payload.context,
+        useSearch: true, // Enable search-enhanced explanation with Agentic RAG
+        searchConfig: settings.searchConfig, // Pass search config for Agentic RAG
       },
-    ];
-
-    let fullContent = '';
-
-    await callLLMWithMessages(
-      messages,
       settings.llmConfig,
-      (chunk) => {
-        fullContent += chunk;
-        sendStreamingMessage(
+      (status) => {
+        // Send agent status updates
+        sendAgentStatusMessage(
           {
-            type: 'streaming_chunk',
-            requestId: request.id,
-            chunk,
+            type: 'agent_status_update',
+            sessionId: request.id,
+            phase: status.phase,
+            stepNumber: status.stepNumber,
+            maxSteps: status.maxSteps,
+            tokenUsage: status.tokenUsage,
+            currentTool: status.currentTool,
           },
           tabId
         );
@@ -485,11 +443,24 @@ ${payload.context}${formatSearchResults(searchResults)}`,
       request.controller.signal
     );
 
+    // Send the final response as streaming chunks for UI compatibility
+    const chunks = result.response.match(/.{1,100}/g) || [result.response];
+    for (const chunk of chunks) {
+      sendStreamingMessage(
+        {
+          type: 'streaming_chunk',
+          requestId: request.id,
+          chunk,
+        },
+        tabId
+      );
+    }
+
     sendStreamingMessage(
       {
         type: 'streaming_end',
         requestId: request.id,
-        content: fullContent,
+        content: result.response,
       },
       tabId
     );
@@ -560,7 +531,8 @@ async function handleCaptureScreenshot(
 
 /**
  * Handle screenshot text extraction using multimodal LLM
- * Requirements: 6.1, 6.2, 6.3, 6.4
+ * Uses agent architecture with goal handlers for complex images
+ * Requirements: 1.1, 1.5, 6.1, 6.2, 6.3, 6.4
  */
 async function handleExtractScreenshot(
   payload: ExtractScreenshotPayload,
@@ -590,27 +562,44 @@ async function handleExtractScreenshot(
   });
 
   try {
-    let fullContent = '';
-
-    await callLLMWithImage(
-      SYSTEM_PROMPTS.extractScreenshot,
-      payload.imageBase64,
+    // Use the new goal handler for screenshot analysis
+    const result = await handleScreenshotGoal(
+      {
+        imageBase64: payload.imageBase64,
+        analysisType: 'general',
+      },
       settings.llmConfig,
-      (chunk) => {
-        fullContent += chunk;
-        sendStreamingMessage({
-          type: 'streaming_chunk',
-          requestId: request.id,
-          chunk,
-        });
+      (status) => {
+        // Send agent status updates if using agent loop
+        if (result?.usedAgent) {
+          sendAgentStatusMessage({
+            type: 'agent_status_update',
+            sessionId: request.id,
+            phase: status.phase,
+            stepNumber: status.stepNumber,
+            maxSteps: status.maxSteps,
+            tokenUsage: status.tokenUsage,
+            currentTool: status.currentTool,
+          });
+        }
       },
       request.controller.signal
     );
 
+    // Send the final response as streaming chunks for UI compatibility
+    const chunks = result.response.match(/.{1,100}/g) || [result.response];
+    for (const chunk of chunks) {
+      sendStreamingMessage({
+        type: 'streaming_chunk',
+        requestId: request.id,
+        chunk,
+      });
+    }
+
     sendStreamingMessage({
       type: 'streaming_end',
       requestId: request.id,
-      content: fullContent,
+      content: result.response,
     });
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {

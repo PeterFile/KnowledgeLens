@@ -12,6 +12,7 @@ export * from './reflection';
 export * from './rag';
 export * from './logger';
 export * from './loop';
+export * from './goal-handlers';
 
 // Default configuration values
 export const DEFAULT_AGENT_CONFIG = {

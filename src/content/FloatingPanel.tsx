@@ -1,5 +1,5 @@
 // Modern draggable and resizable floating panel for AI responses
-// Requirements: 1.6, 9.3 - Display agent status and partial results
+// Style: Refined Neo-Brutalism with Web3 Tech Header
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -16,29 +16,60 @@ interface FloatingPanelProps {
   onClose: () => void;
 }
 
-// Modern skeleton loader
-const SkeletonLoader = () => (
-  <div className="space-y-4">
-    <div className="space-y-2">
-      <div className="h-4 rounded-full w-3/4" style={{ background: 'rgba(99,102,241,0.15)' }} />
-      <div className="h-3 rounded-full w-full" style={{ background: 'rgba(99,102,241,0.1)' }} />
-      <div className="h-3 rounded-full w-5/6" style={{ background: 'rgba(99,102,241,0.1)' }} />
+// Tech Loader - Glitch effect style
+const LoadingIndicator = () => (
+  <div
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      padding: '24px',
+      alignItems: 'center',
+    }}
+  >
+    <div style={{ display: 'flex', gap: '4px' }}>
+      <div
+        style={{ width: '8px', height: '8px', background: '#000', animation: 'pulse 1s infinite' }}
+      ></div>
+      <div
+        style={{
+          width: '8px',
+          height: '8px',
+          background: '#000',
+          animation: 'pulse 1s infinite 0.2s',
+        }}
+      ></div>
+      <div
+        style={{
+          width: '8px',
+          height: '8px',
+          background: '#000',
+          animation: 'pulse 1s infinite 0.4s',
+        }}
+      ></div>
     </div>
-    <div className="space-y-2">
-      <div className="h-3 rounded-full w-full" style={{ background: 'rgba(99,102,241,0.08)' }} />
-      <div className="h-3 rounded-full w-4/5" style={{ background: 'rgba(99,102,241,0.08)' }} />
+    <div
+      style={{
+        marginTop: '12px',
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: '11px',
+        color: '#666',
+        textTransform: 'uppercase',
+      }}
+    >
+      Initialising Agent...
     </div>
+    <style>{`@keyframes pulse { 0%, 100% { opacity: 0.2; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }`}</style>
   </div>
 );
 
-// Agent status indicator (inline styles for content script)
-const PHASE_LABELS: Record<AgentPhase | 'idle', { label: string; icon: string }> = {
-  idle: { label: 'Ready', icon: '⏸️' },
-  thinking: { label: 'Thinking', icon: '🧠' },
-  executing: { label: 'Executing', icon: '⚡' },
-  analyzing: { label: 'Analyzing', icon: '🔍' },
-  reflecting: { label: 'Reflecting', icon: '💭' },
-  synthesizing: { label: 'Synthesizing', icon: '✨' },
+const PHASE_CONFIG: Record<AgentPhase | 'idle', { label: string; bg: string; color: string }> = {
+  idle: { label: 'IDLE', bg: '#F3F4F6', color: '#6B7280' },
+  thinking: { label: 'THINKING', bg: '#EFF6FF', color: '#2563EB' },
+  executing: { label: 'EXECUTING', bg: '#FFFBEB', color: '#D97706' },
+  analyzing: { label: 'ANALYZING', bg: '#F5F3FF', color: '#7C3AED' },
+  reflecting: { label: 'REFLECTING', bg: '#FDF2F8', color: '#DB2777' },
+  synthesizing: { label: 'WRITING', bg: '#ECFDF5', color: '#059669' },
 };
 
 interface AgentStatusIndicatorProps {
@@ -58,134 +89,96 @@ const AgentStatusIndicator = ({
   degradedReason,
   onCancel,
 }: AgentStatusIndicatorProps) => {
-  const config = PHASE_LABELS[phase];
+  const config = PHASE_CONFIG[phase];
   const isRunning = phase !== 'idle';
   const progressPercent = step.max > 0 ? Math.round((step.current / step.max) * 100) : 0;
 
   return (
-    <div style={{ marginBottom: 16 }}>
-      {/* Status header */}
+    <div
+      style={{
+        marginBottom: 16,
+        border: '1px solid #000',
+        borderRadius: '4px',
+        padding: '10px',
+        background: '#fff',
+        boxShadow: '2px 2px 0 0 #000',
+      }}
+    >
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '10px 12px',
-          background: isRunning
-            ? 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.1) 100%)'
-            : 'rgba(249,250,251,1)',
-          borderRadius: 10,
+          alignItems: 'center',
           marginBottom: 8,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 16 }}>{config.icon}</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#4c1d95' }}>{config.label}</span>
-          {isRunning && currentTool && (
-            <span style={{ fontSize: 12, color: '#6b7280' }}>· {currentTool}</span>
-          )}
-          {isRunning && (
+          <span
+            style={{
+              background: config.bg,
+              color: config.color,
+              padding: '2px 6px',
+              fontSize: '10px',
+              fontWeight: 700,
+              fontFamily: '"JetBrains Mono", monospace',
+              border: '1px solid',
+              borderColor: config.color,
+              borderRadius: '2px',
+              textTransform: 'uppercase',
+            }}
+          >
+            {config.label}
+          </span>
+          {currentTool && (
             <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: '#667eea',
-                animation: 'kl-pulse 1.5s infinite',
-              }}
-            />
+              style={{ fontSize: '11px', color: '#444', fontFamily: '"JetBrains Mono", monospace' }}
+            >
+              ./{currentTool}
+            </span>
           )}
         </div>
         {isRunning && onCancel && (
           <button
             onClick={onCancel}
             style={{
-              padding: '4px 8px',
-              fontSize: 11,
-              color: '#6b7280',
-              background: 'transparent',
               border: 'none',
-              borderRadius: 4,
+              background: 'none',
+              color: '#EF4444',
+              fontSize: '10px',
+              fontFamily: 'monospace',
               cursor: 'pointer',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#dc2626';
-              e.currentTarget.style.background = 'rgba(220,38,38,0.1)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = '#6b7280';
-              e.currentTarget.style.background = 'transparent';
+              fontWeight: 'bold',
             }}
           >
-            Cancel
+            [ABORT]
           </button>
         )}
       </div>
 
-      {/* Progress bar */}
       {isRunning && (
-        <div style={{ padding: '0 4px' }}>
+        <div
+          style={{ height: '6px', width: '100%', border: '1px solid #000', background: '#F3F4F6' }}
+        >
           <div
             style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: 11,
-              color: '#6b7280',
-              marginBottom: 4,
+              height: '100%',
+              width: `${progressPercent}%`,
+              background: '#4F46E5', // Web3 Blue
+              transition: 'width 0.3s ease',
             }}
-          >
-            <span>
-              Step {step.current} of {step.max}
-            </span>
-            <span>{progressPercent}%</span>
-          </div>
-          <div
-            style={{
-              height: 4,
-              background: 'rgba(0,0,0,0.06)',
-              borderRadius: 2,
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                height: '100%',
-                width: `${progressPercent}%`,
-                background: 'linear-gradient(90deg, #667eea, #764ba2)',
-                borderRadius: 2,
-                transition: 'width 0.3s ease',
-              }}
-            />
-          </div>
+          ></div>
         </div>
       )}
 
-      {/* Degraded mode warning */}
       {degradedMode && (
-        <div
-          style={{
-            marginTop: 8,
-            padding: '8px 10px',
-            background: 'rgba(251,191,36,0.1)',
-            border: '1px solid rgba(251,191,36,0.3)',
-            borderRadius: 8,
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 8,
-          }}
-        >
-          <span style={{ fontSize: 14 }}>⚠️</span>
-          <div style={{ fontSize: 12, color: '#92400e' }}>
-            <span style={{ fontWeight: 600 }}>Degraded Mode</span>
-            {degradedReason && <p style={{ margin: '4px 0 0 0' }}>{degradedReason}</p>}
-          </div>
+        <div style={{ marginTop: 8, fontSize: '10px', color: '#D97706', fontFamily: 'monospace' }}>
+          WARN: {degradedReason}
         </div>
       )}
     </div>
   );
 };
 
-// Drag hook
 function useDrag(initialPos: { x: number; y: number }) {
   const [position, setPosition] = useState(initialPos);
   const [isDragging, setIsDragging] = useState(false);
@@ -220,7 +213,6 @@ function useDrag(initialPos: { x: number; y: number }) {
   return { position, isDragging, handleMouseDown };
 }
 
-// Resize hook
 function useResize(initialSize: { width: number; height: number }) {
   const [size, setSize] = useState(initialSize);
   const [isResizing, setIsResizing] = useState(false);
@@ -273,7 +265,6 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
-  // Agent status state
   const [agentPhase, setAgentPhase] = useState<AgentPhase | 'idle'>('idle');
   const [agentStep, setAgentStep] = useState({ current: 0, max: 5 });
   const [agentTool, setAgentTool] = useState<string | undefined>();
@@ -285,7 +276,7 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
     y: Math.max(20, (window.innerHeight - 480) / 2),
   });
 
-  const { size, isResizing, handleResizeStart } = useResize({ width: 420, height: 460 });
+  const { size, isResizing, handleResizeStart } = useResize({ width: 420, height: 500 });
 
   const sendRequest = useCallback(() => {
     setStatus('loading');
@@ -304,7 +295,6 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
 
   useEffect(() => {
     const handleMessage = (message: StreamingMessage | AgentStatusMessage) => {
-      // Handle streaming messages
       if ('requestId' in message && requestId && message.requestId === requestId) {
         const streamMsg = message as StreamingMessage;
         switch (streamMsg.type) {
@@ -327,7 +317,6 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
         }
       }
 
-      // Handle agent status messages - use requestId to match (background uses request.id as sessionId)
       if ('sessionId' in message && requestId && message.sessionId === requestId) {
         const agentMsg = message as AgentStatusMessage;
         switch (agentMsg.type) {
@@ -366,7 +355,6 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
     return () => {
       if (requestId) {
         chrome.runtime.sendMessage({ action: 'cancel_request', payload: { requestId } });
-        // Also cancel agent operation (background uses requestId as sessionId)
         chrome.runtime.sendMessage({ action: 'agent_cancel', payload: { sessionId: requestId } });
       }
     };
@@ -375,7 +363,6 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
   const handleCancel = () => {
     if (requestId) {
       chrome.runtime.sendMessage({ action: 'cancel_request', payload: { requestId } });
-      // Also cancel agent operation (background uses requestId as sessionId)
       chrome.runtime.sendMessage({ action: 'agent_cancel', payload: { sessionId: requestId } });
     }
     setStatus('done');
@@ -393,10 +380,10 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
     }
   };
 
-  const title = mode === 'search' ? 'Search & Explain' : 'AI Explanation';
+  const title = mode === 'search' ? 'WEB SEARCH' : 'CONTEXT EXPLAIN';
   const isInteracting = isDragging || isResizing;
 
-  // Modern glassmorphism style with Space Grotesk font
+  // -- STYLE DEFINITIONS: REFINED NEO-BRUTALISM --
   const panelStyle: React.CSSProperties = {
     position: 'fixed',
     left: position.x,
@@ -406,187 +393,133 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
     zIndex: 999998,
     display: 'flex',
     flexDirection: 'column',
-    fontFamily:
-      '"Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    background: 'rgba(255, 255, 255, 0.98)',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-    borderRadius: 16,
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05)',
-    overflow: 'hidden',
+    fontFamily: '"Space Grotesk", sans-serif',
+    background: '#FFFDF5',
+    border: '1px solid #000', // Thin hard border
+    borderRadius: '6px', // Slight radius
+    boxShadow: isDragging ? '4px 4px 0px rgba(0,0,0,0.5)' : '2px 2px 0px #000', // Small hard shadow
+    transition: 'box-shadow 0.1s, width 0.1s, height 0.1s',
     userSelect: isInteracting ? 'none' : 'auto',
   };
 
   return (
     <div data-knowledgelens="floating-panel" style={panelStyle}>
-      {/* Header */}
+      {/* Header Bar - THE WEB3 TECH ACCENT */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '14px 16px',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          padding: '10px 14px',
+          background: '#4F46E5', // Electric Indigo
+          borderBottom: '1px solid #000',
+          borderRadius: '5px 5px 0 0',
           cursor: isDragging ? 'grabbing' : 'grab',
           flexShrink: 0,
         }}
         onMouseDown={handleMouseDown}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Tech Decoration */}
           <div
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              background: 'rgba(255,255,255,0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              width: '10px',
+              height: '10px',
+              background: '#10B981',
+              border: '1px solid #000',
+            }}
+          ></div>
+          <span
+            style={{
+              fontWeight: 700,
+              fontSize: '13px',
+              color: '#fff',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              fontFamily: '"JetBrains Mono", monospace',
             }}
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2"
-            >
-              <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-          </div>
-          <span style={{ color: 'white', fontSize: 14, fontWeight: 600, letterSpacing: '0.01em' }}>
             {title}
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 10 }}>
           <button
             onClick={() => setCollapsed(!collapsed)}
             style={{
-              width: 28,
-              height: 28,
-              borderRadius: 6,
+              background: 'transparent',
               border: 'none',
-              background: 'rgba(255,255,255,0.15)',
-              color: 'white',
+              color: '#fff',
               cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'background 0.2s',
+              fontSize: '14px',
+              fontWeight: 'bold',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-            >
-              {collapsed ? (
-                <>
-                  <path d="M12 5v14" />
-                  <path d="M5 12h14" />
-                </>
-              ) : (
-                <path d="M5 12h14" />
-              )}
-            </svg>
+            {collapsed ? '□' : '_'}
           </button>
           <button
             onClick={onClose}
             style={{
-              width: 28,
-              height: 28,
-              borderRadius: 6,
+              background: 'transparent',
               border: 'none',
-              background: 'rgba(255,255,255,0.15)',
-              color: 'white',
+              color: '#fff',
               cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'background 0.2s',
+              fontSize: '14px',
+              fontWeight: 'bold',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(239,68,68,0.9)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-            >
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
+            X
           </button>
         </div>
       </div>
 
       {!collapsed && (
         <>
-          {/* Selected text chip */}
+          {/* Input Summary - REFINED BRUTALIST STYLE */}
           <div
             style={{
-              padding: '12px 16px',
-              borderBottom: '1px solid rgba(0,0,0,0.06)',
-              flexShrink: 0,
+              padding: '8px 14px',
+              borderBottom: '1px solid #000',
+              background: '#fff',
+              fontSize: '11px',
+              color: '#000',
+              fontFamily: '"JetBrains Mono", monospace',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
             }}
           >
-            <div
+            <span
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '8px 12px',
-                borderRadius: 8,
-                background:
-                  'linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.08) 100%)',
-                maxWidth: '100%',
+                fontWeight: 700,
+                background: '#000',
+                color: '#fff',
+                padding: '1px 4px',
+                borderRadius: '2px',
               }}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#667eea"
-                strokeWidth="2"
-              >
-                <path d="M4 7V4h16v3M9 20h6M12 4v16" />
-              </svg>
-              <span
-                style={{
-                  fontSize: 13,
-                  color: '#4c1d95',
-                  fontWeight: 500,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {selectedText.length > 60 ? selectedText.slice(0, 60) + '...' : selectedText}
-              </span>
-            </div>
+              INPUT
+            </span>
+            <span style={{ opacity: 0.8 }}>
+              &quot;{selectedText.length > 50 ? selectedText.slice(0, 50) + '...' : selectedText}
+              &quot;
+            </span>
           </div>
 
-          {/* Content */}
+          {/* Main Content Area */}
           <div
             style={{
               flex: 1,
               overflow: 'auto',
-              padding: '20px 20px',
+              padding: '20px',
               minHeight: 0,
-              lineHeight: 1.7,
+              lineHeight: '1.6',
+              background: '#FAFAFA',
             }}
           >
-            {status === 'loading' && <SkeletonLoader />}
+            {status === 'loading' && <LoadingIndicator />}
 
             {status === 'agent_running' && (
               <>
@@ -599,378 +532,180 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
                   onCancel={handleCancel}
                 />
                 {content && (
-                  <article className="kl-markdown" style={{ opacity: 0.8 }}>
+                  <div className="kl-markdown" style={{ opacity: 0.7 }}>
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        width: 8,
-                        height: 18,
-                        background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                        borderRadius: 2,
-                        marginLeft: 2,
-                        verticalAlign: 'text-bottom',
-                        animation: 'kl-blink 1s infinite',
-                      }}
-                    />
-                  </article>
+                  </div>
                 )}
               </>
             )}
 
             {(status === 'streaming' || status === 'done') && (
-              <article className="kl-markdown">
+              <div className="kl-markdown">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
                 {status === 'streaming' && (
                   <span
                     style={{
                       display: 'inline-block',
-                      width: 8,
-                      height: 18,
-                      background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                      borderRadius: 2,
-                      marginLeft: 2,
-                      verticalAlign: 'text-bottom',
-                      animation: 'kl-blink 1s infinite',
+                      width: '8px',
+                      height: '16px',
+                      background: '#4F46E5',
+                      marginLeft: '4px',
+                      animation: 'blink 1s step-end infinite',
                     }}
                   />
                 )}
-              </article>
+              </div>
             )}
 
             {status === 'error' && (
               <div
                 style={{
-                  padding: 16,
-                  borderRadius: 12,
-                  background:
-                    'linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(220,38,38,0.08) 100%)',
-                  border: '1px solid rgba(239,68,68,0.2)',
+                  border: '1px solid #000',
+                  background: '#FEF2F2',
+                  padding: '12px',
+                  color: '#DC2626',
+                  fontFamily: 'monospace',
+                  fontSize: '12px',
+                  boxShadow: '2px 2px 0 0 #000',
                 }}
               >
-                <p style={{ margin: 0, fontSize: 14, color: '#dc2626' }}>{error}</p>
+                ERROR: {error}
               </div>
             )}
           </div>
 
-          {/* Footer */}
+          {/* Action Footer */}
           <div
             style={{
               padding: '12px 16px',
-              borderTop: '1px solid rgba(0,0,0,0.06)',
+              borderTop: '1px solid #000',
+              background: '#fff',
               display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              flexShrink: 0,
-              background: 'rgba(249,250,251,0.8)',
+              gap: '10px',
+              justifyContent: 'flex-end',
+              borderRadius: '0 0 5px 5px',
             }}
           >
-            <button
-              onClick={sendRequest}
-              disabled={status === 'loading' || status === 'streaming'}
-              style={{
-                padding: '8px 14px',
-                borderRadius: 8,
-                border: 'none',
-                background:
-                  status === 'loading' || status === 'streaming'
-                    ? '#e5e7eb'
-                    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: status === 'loading' || status === 'streaming' ? '#9ca3af' : 'white',
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: status === 'loading' || status === 'streaming' ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                transition: 'transform 0.15s, box-shadow 0.15s',
-                boxShadow:
-                  status === 'loading' || status === 'streaming'
-                    ? 'none'
-                    : '0 2px 8px rgba(102,126,234,0.3)',
-              }}
-              onMouseEnter={(e) => {
-                if (status !== 'loading' && status !== 'streaming')
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-              }}
-              onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16M16 16h5v5" />
-              </svg>
-              Retry
-            </button>
             <button
               onClick={handleCopy}
               disabled={!content}
               style={{
-                padding: '8px 14px',
-                borderRadius: 8,
-                border: '1px solid rgba(0,0,0,0.1)',
-                background: copied ? '#10b981' : 'white',
-                color: copied ? 'white' : '#374151',
-                fontSize: 13,
-                fontWeight: 500,
+                padding: '6px 16px',
+                background: copied ? '#10B981' : '#fff', // Acid Green on success
+                border: '1px solid #000',
+                color: '#000',
+                fontSize: '12px',
+                fontWeight: 700,
+                fontFamily: '"Space Grotesk", sans-serif',
+                textTransform: 'uppercase',
                 cursor: content ? 'pointer' : 'not-allowed',
-                opacity: content ? 1 : 0.5,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                transition: 'all 0.2s',
+                boxShadow: copied ? '0 0 0 0 #000' : '2px 2px 0 0 #000',
+                transform: copied ? 'translate(1px, 1px)' : 'none',
+                transition: 'all 0.1s',
               }}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                {copied ? (
-                  <path d="M20 6L9 17l-5-5" />
-                ) : (
-                  <>
-                    <rect width="14" height="14" x="8" y="8" rx="2" />
-                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                  </>
-                )}
-              </svg>
-              {copied ? 'Copied!' : 'Copy'}
+              {copied ? 'COPIED' : 'COPY'}
+            </button>
+            <button
+              onClick={sendRequest}
+              style={{
+                padding: '6px 16px',
+                background: '#000',
+                border: '1px solid #000',
+                color: '#fff',
+                fontSize: '12px',
+                fontWeight: 700,
+                fontFamily: '"Space Grotesk", sans-serif',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                boxShadow: '2px 2px 0 0 #4F46E5', // Blue shadow for primary
+                transition: 'all 0.1s',
+              }}
+              onMouseDown={(e) => {
+                e.currentTarget.style.transform = 'translate(1px, 1px)';
+                e.currentTarget.style.boxShadow = '0 0 0 0 #4F46E5';
+              }}
+              onMouseUp={(e) => {
+                e.currentTarget.style.transform = 'translate(0, 0)';
+                e.currentTarget.style.boxShadow = '2px 2px 0 0 #4F46E5';
+              }}
+            >
+              REGENERATE
             </button>
           </div>
 
-          {/* Resize handle */}
+          {/* Resize Grip */}
           <div
             onMouseDown={handleResizeStart}
             style={{
               position: 'absolute',
-              bottom: 0,
-              right: 0,
-              width: 20,
-              height: 20,
+              bottom: 2,
+              right: 2,
+              width: 12,
+              height: 12,
               cursor: 'se-resize',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: 0.4,
-              transition: 'opacity 0.2s',
+              background: 'linear-gradient(135deg, transparent 50%, #000 50%)',
+              opacity: 0.5,
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.4')}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="#667eea">
-              <circle cx="10" cy="10" r="1.5" />
-              <circle cx="6" cy="10" r="1.5" />
-              <circle cx="10" cy="6" r="1.5" />
-            </svg>
-          </div>
+          />
         </>
       )}
 
-      {/* Font import and Markdown styles */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-        
-        @keyframes kl-blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0.3; } }
-        @keyframes kl-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
         
         .kl-markdown {
-          font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          font-size: 14px;
-          line-height: 1.75;
-          color: #1f2937;
-          word-wrap: break-word;
+           font-family: 'Space Grotesk', -apple-system, sans-serif;
+           font-size: 14px;
+           color: #171717;
+           line-height: 1.6;
         }
-        
-        .kl-markdown > *:first-child { margin-top: 0; }
-        .kl-markdown > *:last-child { margin-bottom: 0; }
-        
-        .kl-markdown p {
-          margin: 0 0 1em 0;
-          font-weight: 400;
+        .kl-markdown h1, .kl-markdown h2, .kl-markdown h3 {
+           font-weight: 700;
+           margin-top: 1.5em;
+           margin-bottom: 0.5em;
+           color: #000;
+           text-transform: uppercase;
+           letter-spacing: -0.02em;
         }
-        
-        .kl-markdown h1, .kl-markdown h2, .kl-markdown h3, 
-        .kl-markdown h4, .kl-markdown h5, .kl-markdown h6 {
-          font-family: 'Space Grotesk', sans-serif;
-          font-weight: 600;
-          line-height: 1.4;
-          margin: 1.5em 0 0.75em 0;
-          color: #111827;
-        }
-        
-        .kl-markdown h1 { font-size: 1.5em; }
-        .kl-markdown h2 { font-size: 1.3em; }
-        .kl-markdown h3 { font-size: 1.15em; }
-        .kl-markdown h4 { font-size: 1.05em; }
-        .kl-markdown h5, .kl-markdown h6 { font-size: 1em; }
-        
-        .kl-markdown strong, .kl-markdown b {
-          font-weight: 600;
-          color: #111827;
-        }
-        
-        .kl-markdown em, .kl-markdown i {
-          font-style: italic;
-        }
-        
-        .kl-markdown a {
-          color: #667eea;
-          text-decoration: none;
-          font-weight: 500;
-          border-bottom: 1px solid rgba(102, 126, 234, 0.3);
-          transition: border-color 0.2s, color 0.2s;
-        }
-        
-        .kl-markdown a:hover {
-          color: #764ba2;
-          border-bottom-color: #764ba2;
-        }
-        
-        .kl-markdown ul, .kl-markdown ol {
-          margin: 0.75em 0;
-          padding-left: 1.5em;
-        }
-        
-        .kl-markdown li {
-          margin: 0.4em 0;
-          padding-left: 0.25em;
-        }
-        
-        .kl-markdown li::marker {
-          color: #667eea;
-        }
-        
-        .kl-markdown ul > li {
-          list-style-type: disc;
-        }
-        
-        .kl-markdown ul ul > li {
-          list-style-type: circle;
-        }
-        
-        .kl-markdown ol > li {
-          list-style-type: decimal;
-        }
+        .kl-markdown h1 { font-size: 1.3em; border-bottom: 2px solid #000; padding-bottom: 4px; }
+        .kl-markdown h2 { font-size: 1.1em; }
         
         .kl-markdown code {
-          font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-          font-size: 0.875em;
-          background: linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.08) 100%);
-          color: #4c1d95;
-          padding: 0.2em 0.45em;
-          border-radius: 5px;
-          font-weight: 500;
+           background: #F3F4F6;
+           border: 1px solid #E5E7EB;
+           padding: 2px 4px;
+           font-family: 'JetBrains Mono', monospace;
+           font-size: 0.9em;
+           color: #4F46E5;
+           border-radius: 2px;
         }
-        
         .kl-markdown pre {
-          margin: 1em 0;
-          padding: 1em;
-          background: linear-gradient(135deg, #1e1e2e 0%, #2d2d3f 100%);
-          border-radius: 10px;
-          overflow-x: auto;
-          border: 1px solid rgba(255,255,255,0.1);
+           background: #111;
+           color: #eee;
+           padding: 12px;
+           border: 1px solid #000;
+           overflow-x: auto;
+           margin: 1em 0;
+           border-radius: 4px;
+           box-shadow: 2px 2px 0 0 #ccc;
         }
-        
-        .kl-markdown pre code {
-          font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-          font-size: 0.85em;
-          background: transparent;
-          color: #e2e8f0;
-          padding: 0;
-          border-radius: 0;
-          font-weight: 400;
-          line-height: 1.6;
+        .kl-markdown a {
+           color: #4F46E5;
+           text-decoration: underline;
+           text-decoration-thickness: 2px;
+           font-weight: 600;
         }
-        
         .kl-markdown blockquote {
-          margin: 1em 0;
-          padding: 0.75em 1em;
-          border-left: 4px solid;
-          border-image: linear-gradient(135deg, #667eea, #764ba2) 1;
-          background: linear-gradient(135deg, rgba(102,126,234,0.05) 0%, rgba(118,75,162,0.05) 100%);
-          border-radius: 0 8px 8px 0;
-          color: #4b5563;
-          font-style: italic;
+           border-left: 3px solid #000;
+           margin: 1em 0;
+           padding-left: 1em;
+           font-style: italic;
+           background: #fff;
         }
-        
-        .kl-markdown blockquote p {
-          margin: 0;
-        }
-        
-        .kl-markdown hr {
-          margin: 1.5em 0;
-          border: none;
-          height: 2px;
-          background: linear-gradient(90deg, transparent, rgba(102,126,234,0.3), transparent);
-        }
-        
-        .kl-markdown table {
-          width: 100%;
-          margin: 1em 0;
-          border-collapse: collapse;
-          font-size: 0.9em;
-          border-radius: 8px;
-          overflow: hidden;
-          border: 1px solid rgba(0,0,0,0.08);
-        }
-        
-        .kl-markdown th {
-          background: linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.1) 100%);
-          font-weight: 600;
-          text-align: left;
-          padding: 0.75em 1em;
-          color: #4c1d95;
-          border-bottom: 2px solid rgba(102,126,234,0.2);
-        }
-        
-        .kl-markdown td {
-          padding: 0.65em 1em;
-          border-bottom: 1px solid rgba(0,0,0,0.06);
-        }
-        
-        .kl-markdown tr:last-child td {
-          border-bottom: none;
-        }
-        
-        .kl-markdown tr:hover td {
-          background: rgba(102,126,234,0.03);
-        }
-        
-        .kl-markdown img {
-          max-width: 100%;
-          height: auto;
-          border-radius: 8px;
-          margin: 0.75em 0;
-        }
-        
-        .kl-markdown del {
-          color: #9ca3af;
-          text-decoration: line-through;
-        }
-        
-        .kl-markdown mark {
-          background: linear-gradient(135deg, rgba(251,191,36,0.3) 0%, rgba(245,158,11,0.3) 100%);
-          color: inherit;
-          padding: 0.1em 0.3em;
-          border-radius: 3px;
-        }
-        
-        .kl-markdown sup, .kl-markdown sub {
-          font-size: 0.75em;
-        }
-        
-        .kl-markdown input[type="checkbox"] {
-          margin-right: 0.5em;
-          accent-color: #667eea;
+        .kl-markdown ul, .kl-markdown ol {
+           padding-left: 1.5em;
+           margin: 1em 0;
         }
       `}</style>
     </div>

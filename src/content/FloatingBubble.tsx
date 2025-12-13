@@ -1,5 +1,5 @@
 // Floating Bubble component
-// Requirements: 2.1, 2.3 - Show bubble near selection, hide on selection clear
+// Style: Refined Brutalist Square
 
 import React from 'react';
 
@@ -9,43 +9,38 @@ interface FloatingBubbleProps {
   onSearch: () => void;
 }
 
-// AI icon SVG
-const AIIcon = () => (
+// Tech Icons
+const LensIcon = () => (
   <svg
     width="20"
     height="20"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
+    strokeWidth="2.5"
+    strokeLinecap="square"
+    strokeLinejoin="miter"
   >
-    <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z" />
-    <circle cx="7.5" cy="14.5" r="1.5" fill="currentColor" />
-    <circle cx="16.5" cy="14.5" r="1.5" fill="currentColor" />
+    <circle cx="11" cy="11" r="8"></circle>
+    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
   </svg>
 );
 
-// Explain icon
-const ExplainIcon = () => (
+const BoltIcon = () => (
   <svg
     width="16"
     height="16"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
+    strokeWidth="2.5"
+    strokeLinecap="square"
+    strokeLinejoin="miter"
   >
-    <circle cx="12" cy="12" r="10" />
-    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-    <path d="M12 17h.01" />
+    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
   </svg>
 );
 
-// Search icon
 const SearchIcon = () => (
   <svg
     width="16"
@@ -53,12 +48,12 @@ const SearchIcon = () => (
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
+    strokeWidth="2.5"
+    strokeLinecap="square"
+    strokeLinejoin="miter"
   >
-    <circle cx="11" cy="11" r="8" />
-    <path d="m21 21-4.3-4.3" />
+    <circle cx="11" cy="11" r="8"></circle>
+    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
   </svg>
 );
 
@@ -68,9 +63,37 @@ export function FloatingBubble({ position, onExplain, onSearch }: FloatingBubble
   // Calculate position to keep bubble in viewport
   const bubbleStyle: React.CSSProperties = {
     position: 'fixed',
-    left: Math.min(position.x + 8, window.innerWidth - 160),
-    top: Math.min(position.y - window.scrollY + 8, window.innerHeight - 60),
+    left: Math.min(position.x + 10, window.innerWidth - 160),
+    top: Math.min(position.y - window.scrollY + 10, window.innerHeight - 60),
     zIndex: 999999,
+  };
+
+  const btnBaseStyle: React.CSSProperties = {
+    border: '1px solid #000',
+    borderRadius: '4px', // Tight radius
+    boxShadow: '2px 2px 0 0 #000',
+    background: '#fff',
+    color: '#000',
+    cursor: 'pointer',
+    transition: 'transform 0.1s ease',
+    fontFamily: '"Space Grotesk", sans-serif',
+    fontWeight: 700,
+    fontSize: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 12px',
+    textTransform: 'uppercase',
+  };
+
+  const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.currentTarget.style.transform = 'translate(-1px, -1px)';
+    e.currentTarget.style.boxShadow = '3px 3px 0 0 #000';
+  };
+
+  const handleMouseLeave = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.currentTarget.style.transform = 'translate(0, 0)';
+    e.currentTarget.style.boxShadow = '2px 2px 0 0 #000';
   };
 
   const handleMainClick = (e: React.MouseEvent) => {
@@ -78,48 +101,80 @@ export function FloatingBubble({ position, onExplain, onSearch }: FloatingBubble
     setExpanded(!expanded);
   };
 
-  const handleExplain = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onExplain();
-  };
-
-  const handleSearch = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onSearch();
-  };
-
   return (
-    <div style={bubbleStyle} data-knowledgelens="bubble" className="inline-flex items-center gap-1">
-      {/* Main AI button */}
+    <div
+      style={bubbleStyle}
+      data-knowledgelens="bubble"
+      className="flex items-start gap-2"
+      onMouseLeave={() => setExpanded(false)}
+    >
+      {/* Main Trigger Button */}
       <button
         onClick={handleMainClick}
-        className="w-10 h-10 rounded-full bg-blue-500 hover:bg-blue-600 text-white shadow-lg flex items-center justify-center cursor-pointer transition border-0"
-        title="KnowledgeLens AI"
+        onMouseEnter={(e) => {
+          handleMouseEnter(e);
+          setExpanded(true);
+        }}
+        style={{
+          ...btnBaseStyle,
+          padding: '10px',
+          background: '#4F46E5', // Web3 Blue
+          color: '#fff',
+        }}
+        title="KnowledgeLens"
       >
-        <AIIcon />
+        <LensIcon />
       </button>
 
-      {/* Expanded action buttons */}
+      {/* Expanded Actions */}
       {expanded && (
-        <div className="flex items-center gap-1 bg-white rounded-lg shadow-lg p-1 border border-gray-200">
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+            animation: 'slideIn 0.1s ease-out',
+          }}
+        >
           <button
-            onClick={handleExplain}
-            className="px-3 py-2 rounded-md hover:bg-gray-100 text-gray-700 text-sm font-medium flex items-center gap-2 cursor-pointer transition border-0 bg-white"
-            title="Explain with AI"
+            onClick={(e) => {
+              e.stopPropagation();
+              onExplain();
+            }}
+            style={{ ...btnBaseStyle }}
+            onMouseEnter={(e) => {
+              handleMouseEnter(e);
+              e.currentTarget.style.background = '#10B981'; // Acid Green hover
+              e.currentTarget.style.color = '#000';
+            }}
+            onMouseLeave={(e) => {
+              handleMouseLeave(e);
+              e.currentTarget.style.background = '#fff';
+            }}
           >
-            <ExplainIcon />
-            <span>Explain</span>
+            <BoltIcon /> Explain
           </button>
           <button
-            onClick={handleSearch}
-            className="px-3 py-2 rounded-md hover:bg-gray-100 text-gray-700 text-sm font-medium flex items-center gap-2 cursor-pointer transition border-0 bg-white"
-            title="Search & Explain"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSearch();
+            }}
+            style={{ ...btnBaseStyle }}
+            onMouseEnter={(e) => {
+              handleMouseEnter(e);
+              e.currentTarget.style.background = '#F59E0B'; // Warn Orange hover
+              e.currentTarget.style.color = '#000';
+            }}
+            onMouseLeave={(e) => {
+              handleMouseLeave(e);
+              e.currentTarget.style.background = '#fff';
+            }}
           >
-            <SearchIcon />
-            <span>Search</span>
+            <SearchIcon /> Search
           </button>
         </div>
       )}
+      <style>{`@keyframes slideIn { from { opacity: 0; transform: translateX(-5px); } to { opacity: 1; transform: translateX(0); } }`}</style>
     </div>
   );
 }

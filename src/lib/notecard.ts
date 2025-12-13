@@ -44,19 +44,21 @@ export interface NoteCard {
   height: number;
 }
 
-// Card dimensions and styling
+// Card dimensions and styling (logical pixels, will be scaled by DPR)
 const CARD_CONFIG = {
-  width: 600,
-  padding: 24,
-  headerHeight: 60,
-  footerHeight: 80,
-  qrSize: 60,
-  borderRadius: 12,
+  width: 800, // Increased for better quality
+  padding: 32,
+  headerHeight: 72,
+  footerHeight: 96,
+  qrSize: 80,
+  borderRadius: 16,
   backgroundColor: '#ffffff',
   headerBgColor: '#f8fafc',
   textColor: '#1e293b',
   mutedColor: '#64748b',
   borderColor: '#e2e8f0',
+  // Device pixel ratio for high-DPI rendering
+  dpr: 2, // Always render at 2x for crisp output
 };
 
 /**
@@ -65,7 +67,7 @@ const CARD_CONFIG = {
  */
 export async function generateQRCode(url: string): Promise<string> {
   return QRCode.toDataURL(url, {
-    width: CARD_CONFIG.qrSize * 2, // Higher resolution for quality
+    width: CARD_CONFIG.qrSize * CARD_CONFIG.dpr * 2, // High resolution for quality
     margin: 1,
     color: {
       dark: '#1e293b',
@@ -139,10 +141,11 @@ function roundRect(
 
 /**
  * Generate a note card image from screenshot and AI content
+ * Uses 2x DPR for high-quality output on all displays
  * Requirements: 7.1, 7.2, 7.3
  */
 export async function generateNoteCard(data: NoteCardData): Promise<NoteCard> {
-  const { width, padding, headerHeight, footerHeight, qrSize, borderRadius } = CARD_CONFIG;
+  const { width, padding, headerHeight, footerHeight, qrSize, borderRadius, dpr } = CARD_CONFIG;
 
   // Load images
   const [screenshotImg, qrCodeDataUrl] = await Promise.all([
@@ -156,31 +159,38 @@ export async function generateNoteCard(data: NoteCardData): Promise<NoteCard> {
 
   const qrImg = await loadImage(qrCodeDataUrl);
 
-  // Calculate screenshot dimensions to fit card width
+  // Calculate screenshot dimensions to fit card width (in logical pixels)
   const contentWidth = width - padding * 2;
   const screenshotAspect = screenshotImg.width / screenshotImg.height;
-  const screenshotHeight = Math.min(contentWidth / screenshotAspect, 400);
+  const screenshotHeight = Math.min(contentWidth / screenshotAspect, 500);
   const screenshotWidth = screenshotHeight * screenshotAspect;
 
-  // Create temporary canvas to measure text
+  // Create temporary canvas to measure text (at DPR scale)
   const tempCanvas = document.createElement('canvas');
   const tempCtx = tempCanvas.getContext('2d')!;
-  tempCtx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  tempCtx.font = `${16 * dpr}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
 
-  // Wrap AI summary text
+  // Wrap AI summary text (measure at scaled size)
   const summaryLines = data.aiSummary
-    ? wrapText(tempCtx, data.aiSummary, contentWidth - qrSize - padding)
+    ? wrapText(tempCtx, data.aiSummary, (contentWidth - qrSize - padding) * dpr)
     : [];
-  const summaryHeight = summaryLines.length * 20 + (summaryLines.length > 0 ? padding : 0);
+  const summaryHeight = summaryLines.length * 24 + (summaryLines.length > 0 ? padding : 0);
 
-  // Calculate total card height
+  // Calculate total card height (logical pixels)
   const cardHeight = headerHeight + screenshotHeight + summaryHeight + footerHeight + padding * 2;
 
-  // Create main canvas
+  // Create main canvas at DPR scale for high-quality output
   const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = cardHeight;
+  canvas.width = width * dpr;
+  canvas.height = cardHeight * dpr;
   const ctx = canvas.getContext('2d')!;
+
+  // Scale all drawing operations by DPR
+  ctx.scale(dpr, dpr);
+
+  // Enable high-quality image rendering
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
   // Draw card background with rounded corners
   ctx.fillStyle = CARD_CONFIG.backgroundColor;
@@ -215,11 +225,18 @@ export async function generateNoteCard(data: NoteCardData): Promise<NoteCard> {
 
   // Draw favicon if available
   let titleX = padding;
+  const faviconSize = 32;
   if (data.favicon) {
     try {
       const faviconImg = await loadImage(data.favicon);
-      ctx.drawImage(faviconImg, padding, (headerHeight - 24) / 2, 24, 24);
-      titleX = padding + 32;
+      ctx.drawImage(
+        faviconImg,
+        padding,
+        (headerHeight - faviconSize) / 2,
+        faviconSize,
+        faviconSize
+      );
+      titleX = padding + faviconSize + 12;
     } catch {
       // Favicon failed to load, skip it
     }
@@ -227,12 +244,12 @@ export async function generateNoteCard(data: NoteCardData): Promise<NoteCard> {
 
   // Draw title
   ctx.fillStyle = CARD_CONFIG.textColor;
-  ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   const titleMaxWidth = width - titleX - padding;
   const truncatedTitle = truncateText(ctx, data.title || 'Untitled', titleMaxWidth);
-  ctx.fillText(truncatedTitle, titleX, headerHeight / 2 + 6);
+  ctx.fillText(truncatedTitle, titleX, headerHeight / 2 + 7);
 
-  // Draw screenshot
+  // Draw screenshot with high quality
   const screenshotX = (width - screenshotWidth) / 2;
   const screenshotY = headerHeight + padding;
   ctx.drawImage(screenshotImg, screenshotX, screenshotY, screenshotWidth, screenshotHeight);
@@ -241,10 +258,10 @@ export async function generateNoteCard(data: NoteCardData): Promise<NoteCard> {
   if (summaryLines.length > 0) {
     const summaryY = screenshotY + screenshotHeight + padding;
     ctx.fillStyle = CARD_CONFIG.textColor;
-    ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = '16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 
     summaryLines.forEach((line, index) => {
-      ctx.fillText(line, padding, summaryY + index * 20 + 14);
+      ctx.fillText(line, padding, summaryY + index * 24 + 18);
     });
   }
 
@@ -263,19 +280,19 @@ export async function generateNoteCard(data: NoteCardData): Promise<NoteCard> {
 
   // Draw source URL
   ctx.fillStyle = CARD_CONFIG.mutedColor;
-  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   const urlMaxWidth = width - padding * 3 - qrSize;
   const truncatedUrl = truncateText(ctx, data.sourceUrl, urlMaxWidth);
-  ctx.fillText(truncatedUrl, padding, footerY + footerHeight / 2 + 4);
+  ctx.fillText(truncatedUrl, padding, footerY + footerHeight / 2 + 5);
 
   // Draw "Scan to visit" label
-  ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('Scan to visit', qrX, qrY - 4);
+  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('Scan to visit', qrX, qrY - 6);
 
   return {
     imageDataUrl: canvas.toDataURL('image/png'),
-    width,
-    height: cardHeight,
+    width: width * dpr, // Return actual pixel dimensions
+    height: cardHeight * dpr,
   };
 }
 

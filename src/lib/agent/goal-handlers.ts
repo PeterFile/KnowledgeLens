@@ -766,6 +766,193 @@ async function handleAgentScreenshot(
 }
 
 // ============================================================================
+// Note Card Goal Handler
+// Requirements: 7.1, 7.2, 7.3
+// ============================================================================
+
+export interface NoteCardGoalParams {
+  imageBase64: string;
+  extractedText?: string;
+  pageUrl: string;
+  pageTitle: string;
+}
+
+/**
+ * Handle note card generation goal.
+ * Uses vision LLM to analyze the screenshot and generate an insightful summary.
+ * Requirements: 7.1, 7.2, 7.3
+ */
+export async function handleNoteCardGoal(
+  params: NoteCardGoalParams,
+  llmConfig: LLMConfig,
+  onStatus: StatusCallback,
+  signal?: AbortSignal
+): Promise<GoalHandlerResult> {
+  const sessionId = `notecard_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const goal = `Generate insightful note card summary for: ${params.pageTitle || params.pageUrl}`;
+
+  const steps: AgentStep[] = [];
+  let totalTokens = { input: 0, output: 0 };
+  let stepNumber = 0;
+
+  // Step 1: Analyze the screenshot with vision LLM
+  stepNumber++;
+  onStatus({
+    phase: 'analyzing',
+    stepNumber,
+    maxSteps: 3,
+    tokenUsage: totalTokens,
+    currentTool: 'vision_analysis',
+  });
+
+  steps.push({
+    stepNumber,
+    timestamp: Date.now(),
+    type: 'thought',
+    content: `Analyzing screenshot to understand the content and generate an insightful summary.`,
+    tokenCount: 0,
+  });
+
+  // Use vision LLM to analyze the image and generate summary
+  const visionPrompt = `You are creating a note card summary for a screenshot. Analyze this image and provide:
+
+1. A brief, insightful 1-2 sentence summary that captures the KEY INSIGHT or main takeaway
+2. Focus on what makes this content valuable or memorable
+3. If there's code, explain what it does in plain language
+4. If there's a diagram or chart, describe the key data point or trend
+
+Page Title: ${params.pageTitle || 'Unknown'}
+Page URL: ${params.pageUrl}
+${params.extractedText ? `\nPreviously extracted text:\n${params.extractedText.slice(0, 1000)}` : ''}
+
+Respond with ONLY the summary text (1-2 sentences). No labels, no formatting, just the insight.`;
+
+  let aiSummary = '';
+  try {
+    const llmResponse = await callLLMWithImage(
+      visionPrompt,
+      params.imageBase64,
+      llmConfig,
+      (chunk) => {
+        aiSummary += chunk;
+      },
+      signal
+    );
+
+    const inputTokens = llmResponse.usage?.promptTokens ?? 1500;
+    const outputTokens = llmResponse.usage?.completionTokens ?? countTokens(aiSummary);
+    totalTokens = {
+      input: totalTokens.input + inputTokens,
+      output: totalTokens.output + outputTokens,
+    };
+
+    stepNumber++;
+    steps.push({
+      stepNumber,
+      timestamp: Date.now(),
+      type: 'observation',
+      content: `Vision analysis complete. Generated summary: "${aiSummary}"`,
+      tokenCount: outputTokens,
+    });
+  } catch (error) {
+    // If vision fails, try with extracted text only
+    stepNumber++;
+    steps.push({
+      stepNumber,
+      timestamp: Date.now(),
+      type: 'reflection',
+      content: `Vision analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}. Attempting text-based summary.`,
+      tokenCount: 0,
+    });
+
+    if (params.extractedText) {
+      onStatus({
+        phase: 'thinking',
+        stepNumber,
+        maxSteps: 3,
+        tokenUsage: totalTokens,
+        currentTool: 'text_summary',
+      });
+
+      const textPrompt = `Create a brief, insightful 1-2 sentence summary for a note card. Focus on the key insight or main takeaway.
+
+Page Title: ${params.pageTitle || 'Unknown'}
+Content: ${params.extractedText.slice(0, 2000)}
+
+Respond with ONLY the summary text (1-2 sentences). No labels, no formatting.`;
+
+      const messages: ChatMessage[] = [
+        { role: 'system', content: 'You create concise, insightful summaries for note cards.' },
+        { role: 'user', content: textPrompt },
+      ];
+
+      const llmResponse = await callLLMWithMessages(
+        messages,
+        llmConfig,
+        (chunk) => {
+          aiSummary += chunk;
+        },
+        signal
+      );
+
+      const inputTokens = llmResponse.usage?.promptTokens ?? countTokens(textPrompt);
+      const outputTokens = llmResponse.usage?.completionTokens ?? countTokens(aiSummary);
+      totalTokens = {
+        input: totalTokens.input + inputTokens,
+        output: totalTokens.output + outputTokens,
+      };
+    }
+  }
+
+  // Step 3: Synthesize final result
+  stepNumber++;
+  onStatus({
+    phase: 'synthesizing',
+    stepNumber,
+    maxSteps: 3,
+    tokenUsage: totalTokens,
+  });
+
+  steps.push({
+    stepNumber,
+    timestamp: Date.now(),
+    type: 'synthesis',
+    content: aiSummary || 'Screenshot captured for reference.',
+    tokenCount: 0,
+  });
+
+  const trajectory: AgentTrajectory = {
+    requestId: sessionId,
+    goal,
+    steps,
+    status: 'completed',
+    totalTokens,
+    efficiency: aiSummary ? 1 : 0.5,
+  };
+
+  const context = createContext(goal, 128000);
+  const memory = createEpisodicMemory(sessionId);
+
+  return {
+    trajectory,
+    context,
+    memory,
+    log: {
+      requestId: sessionId,
+      entries: [],
+      metrics: {
+        totalSteps: steps.length,
+        totalTokens,
+        duration: 0,
+        errorCount: aiSummary ? 0 : 1,
+      },
+    },
+    response: aiSummary,
+    usedAgent: true,
+  };
+}
+
+// ============================================================================
 // Goal Handler Registry
 // ============================================================================
 
@@ -780,4 +967,5 @@ export const goalHandlers = {
   summarize: handleSummarizeGoal,
   explain: handleExplainGoal,
   screenshot: handleScreenshotGoal,
+  noteCard: handleNoteCardGoal,
 } as const;

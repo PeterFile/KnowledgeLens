@@ -127,6 +127,7 @@ function hideScreenshotOverlay(): void {
  * Requirements: 5.2, 5.3
  */
 function handleScreenshotCapture(region: ScreenshotRegion): void {
+  console.log('Screenshot capture requested:', region);
   hideScreenshotOverlay();
 
   // Send capture request to background service worker
@@ -136,7 +137,13 @@ function handleScreenshotCapture(region: ScreenshotRegion): void {
       payload: { region, tabId: 0 }, // tabId will be determined by background
     },
     (response) => {
+      console.log('Screenshot capture response:', response);
+      if (chrome.runtime.lastError) {
+        console.error('Runtime error:', chrome.runtime.lastError);
+        return;
+      }
       if (response?.success && response.data) {
+        console.log('Screenshot captured successfully, showing processing panel');
         const result: ScreenshotResult = {
           imageBase64: response.data.imageBase64,
           region,
@@ -147,6 +154,8 @@ function handleScreenshotCapture(region: ScreenshotRegion): void {
         showProcessingPanel(result);
       } else if (response?.error) {
         console.error('Screenshot capture failed:', response.error);
+      } else {
+        console.error('Unexpected response:', response);
       }
     }
   );

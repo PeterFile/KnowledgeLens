@@ -1,8 +1,9 @@
 // Offscreen document for CPU-intensive image operations
-// Handles image cropping to avoid blocking the service worker
-// Requirements: 5.3
+// Handles image cropping and note card generation
+// Requirements: 5.3, 7.1, 7.2, 7.3
 
 import type { ScreenshotRegion } from '../types';
+import { generateNoteCard, type NoteCardData } from '../lib/notecard';
 
 /**
  * Message types for offscreen document communication
@@ -13,17 +14,30 @@ interface CropImageMessage {
   region: ScreenshotRegion;
 }
 
+interface GenerateNoteCardMessage {
+  action: 'generate_note_card';
+  data: NoteCardData;
+}
+
 interface CropImageResponse {
   success: true;
   croppedImageBase64: string;
 }
 
-interface CropImageErrorResponse {
+interface NoteCardResponse {
+  success: true;
+  imageDataUrl: string;
+  width: number;
+  height: number;
+}
+
+interface ErrorResponse {
   success: false;
   error: string;
 }
 
-type OffscreenResponse = CropImageResponse | CropImageErrorResponse;
+type OffscreenMessage = CropImageMessage | GenerateNoteCardMessage;
+type OffscreenResponse = CropImageResponse | NoteCardResponse | ErrorResponse;
 
 /**
  * Crop an image using Canvas API
@@ -90,7 +104,7 @@ function cropImage(imageDataUrl: string, region: ScreenshotRegion): Promise<stri
  * Only accepts messages from the extension itself for security
  */
 chrome.runtime.onMessage.addListener(
-  (message: CropImageMessage, sender, sendResponse: (response: OffscreenResponse) => void) => {
+  (message: OffscreenMessage, sender, sendResponse: (response: OffscreenResponse) => void) => {
     // Security check: only accept messages from our extension
     if (sender.id !== chrome.runtime.id) {
       return false;
@@ -108,7 +122,26 @@ chrome.runtime.onMessage.addListener(
           });
         });
 
-      // Return true to indicate async response
+      return true;
+    }
+
+    if (message.action === 'generate_note_card') {
+      generateNoteCard(message.data)
+        .then((noteCard) => {
+          sendResponse({
+            success: true,
+            imageDataUrl: noteCard.imageDataUrl,
+            width: noteCard.width,
+            height: noteCard.height,
+          });
+        })
+        .catch((error) => {
+          sendResponse({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        });
+
       return true;
     }
 

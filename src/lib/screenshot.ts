@@ -4,6 +4,7 @@
 
 import type { ScreenshotRegion } from '../types';
 
+// Path relative to extension root (matches build output structure)
 const OFFSCREEN_DOCUMENT_PATH = 'src/offscreen/offscreen.html';
 
 /**
@@ -20,7 +21,7 @@ async function hasOffscreenDocument(): Promise<boolean> {
 /**
  * Create offscreen document if it doesn't exist
  */
-async function ensureOffscreenDocument(): Promise<void> {
+export async function ensureOffscreenDocument(): Promise<void> {
   if (await hasOffscreenDocument()) {
     return;
   }

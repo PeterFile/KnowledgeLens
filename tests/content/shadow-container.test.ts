@@ -1,6 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, beforeEach, afterEach } from 'vitest';
 import * as fc from 'fast-check';
-import { createShadowContainer, destroyAllShadowContainers } from '../../src/content/shadow-container';
+import {
+  createShadowContainer,
+  destroyAllShadowContainers,
+} from '../../src/content/shadow-container';
 
 /**
  * **Feature: knowledge-lens, Property 16: Shadow DOM style isolation**
@@ -29,13 +32,21 @@ describe('Property 16: Shadow DOM style isolation', () => {
   });
 
   // Generate random container IDs
-  const containerIdArb = fc.string({ minLength: 1, maxLength: 20 })
+  const containerIdArb = fc
+    .string({ minLength: 1, maxLength: 20 })
     .map((s) => `shadow-${s.replace(/[^a-zA-Z0-9]/g, 'x')}`);
 
   // Generate random class names for testing style injection
+  // These classes should exist in the SHADOW_STYLES defined in shadow-container.ts
   const classNameArb = fc.constantFrom(
-    'flex', 'hidden', 'p-4', 'bg-white', 'rounded-lg', 'shadow-lg',
-    'text-sm', 'font-medium', 'items-center', 'justify-between'
+    'flex',
+    'flex-col',
+    'items-center',
+    'gap-1',
+    'gap-2',
+    'inline-flex',
+    'font-sans',
+    'animate-pulse'
   );
 
   it('shadow root is created for each container', () => {
@@ -165,8 +176,8 @@ describe('Property 16: Shadow DOM style isolation', () => {
         );
 
         // Each shadow root should have styles
-        const allHaveStyles = containers.every((c) =>
-          c.shadow.querySelectorAll('style').length > 0
+        const allHaveStyles = containers.every(
+          (c) => c.shadow.querySelectorAll('style').length > 0
         );
 
         // Clean up

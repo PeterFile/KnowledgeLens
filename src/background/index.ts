@@ -221,6 +221,7 @@ async function handleSummarize(
 
   try {
     // Use the new goal handler which decides between simple and agent-based approach
+    // Always send agent status updates for real-time UI feedback
     const result = await handleSummarizeGoal(
       {
         content: payload.content,
@@ -228,18 +229,16 @@ async function handleSummarize(
       },
       settings.llmConfig,
       (status) => {
-        // Send agent status updates for complex pages
-        if (result?.usedAgent) {
-          sendAgentStatusMessage({
-            type: 'agent_status_update',
-            sessionId: request.id,
-            phase: status.phase,
-            stepNumber: status.stepNumber,
-            maxSteps: status.maxSteps,
-            tokenUsage: status.tokenUsage,
-            currentTool: status.currentTool,
-          });
-        }
+        // Always send agent status updates for real-time UI feedback
+        sendAgentStatusMessage({
+          type: 'agent_status_update',
+          sessionId: request.id,
+          phase: status.phase,
+          stepNumber: status.stepNumber,
+          maxSteps: status.maxSteps,
+          tokenUsage: status.tokenUsage,
+          currentTool: status.currentTool,
+        });
       },
       request.controller.signal
     );
@@ -568,6 +567,7 @@ async function handleExtractScreenshot(
 
   try {
     // Use the new goal handler for screenshot analysis
+    // Always send agent status updates for real-time UI feedback
     const result = await handleScreenshotGoal(
       {
         imageBase64: payload.imageBase64,
@@ -575,18 +575,16 @@ async function handleExtractScreenshot(
       },
       settings.llmConfig,
       (status) => {
-        // Send agent status updates if using agent loop
-        if (result?.usedAgent) {
-          sendAgentStatusMessage({
-            type: 'agent_status_update',
-            sessionId: request.id,
-            phase: status.phase,
-            stepNumber: status.stepNumber,
-            maxSteps: status.maxSteps,
-            tokenUsage: status.tokenUsage,
-            currentTool: status.currentTool,
-          });
-        }
+        // Always send agent status updates for real-time UI feedback
+        sendAgentStatusMessage({
+          type: 'agent_status_update',
+          sessionId: request.id,
+          phase: status.phase,
+          stepNumber: status.stepNumber,
+          maxSteps: status.maxSteps,
+          tokenUsage: status.tokenUsage,
+          currentTool: status.currentTool,
+        });
       },
       request.controller.signal
     );

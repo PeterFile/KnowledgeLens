@@ -270,8 +270,6 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
   const [content, setContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [requestId, setRequestId] = useState<string | null>(null);
-  // sessionId is used for agent operations (will be set when agent_execute is called in future)
-  const [sessionId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -319,16 +317,18 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
             break;
           case 'streaming_end':
             setStatus('done');
+            setAgentPhase('idle');
             break;
           case 'streaming_error':
             setError(streamMsg.error || 'An error occurred');
             setStatus('error');
+            setAgentPhase('idle');
             break;
         }
       }
 
-      // Handle agent status messages
-      if ('sessionId' in message && sessionId && message.sessionId === sessionId) {
+      // Handle agent status messages - use requestId to match (background uses request.id as sessionId)
+      if ('sessionId' in message && requestId && message.sessionId === requestId) {
         const agentMsg = message as AgentStatusMessage;
         switch (agentMsg.type) {
           case 'agent_status_update':
@@ -356,7 +356,7 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
     };
     chrome.runtime.onMessage.addListener(handleMessage);
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
-  }, [requestId, sessionId]);
+  }, [requestId]);
 
   useEffect(() => {
     sendRequest();
@@ -364,18 +364,19 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
 
   useEffect(() => {
     return () => {
-      if (requestId)
+      if (requestId) {
         chrome.runtime.sendMessage({ action: 'cancel_request', payload: { requestId } });
-      if (sessionId) chrome.runtime.sendMessage({ action: 'agent_cancel', payload: { sessionId } });
+        // Also cancel agent operation (background uses requestId as sessionId)
+        chrome.runtime.sendMessage({ action: 'agent_cancel', payload: { sessionId: requestId } });
+      }
     };
-  }, [requestId, sessionId]);
+  }, [requestId]);
 
   const handleCancel = () => {
     if (requestId) {
       chrome.runtime.sendMessage({ action: 'cancel_request', payload: { requestId } });
-    }
-    if (sessionId) {
-      chrome.runtime.sendMessage({ action: 'agent_cancel', payload: { sessionId } });
+      // Also cancel agent operation (background uses requestId as sessionId)
+      chrome.runtime.sendMessage({ action: 'agent_cancel', payload: { sessionId: requestId } });
     }
     setStatus('done');
     setAgentPhase('idle');

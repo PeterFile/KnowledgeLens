@@ -176,8 +176,16 @@ export interface AsyncState<T> {
   requestId?: string;
 }
 
+// Agent Configuration
+export interface AgentSettings {
+  tokenBudget: number; // Default: 100000
+  maxSteps: number; // Default: 5
+  maxRetries: number; // Default: 3
+}
+
 // Stored Settings for chrome.storage.local
 export interface StoredSettings {
   llmConfig?: LLMConfig;
   searchConfig?: SearchConfig;
+  agentSettings?: AgentSettings;
 }

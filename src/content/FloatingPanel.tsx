@@ -1,11 +1,13 @@
 // Modern draggable and resizable floating panel for AI responses
+// Requirements: 1.6, 9.3 - Display agent status and partial results
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { StreamingMessage } from '../types';
+import type { StreamingMessage, AgentStatusMessage } from '../types';
+import type { AgentPhase } from '../lib/agent/types';
 
-type PanelStatus = 'loading' | 'streaming' | 'done' | 'error';
+type PanelStatus = 'loading' | 'streaming' | 'done' | 'error' | 'agent_running';
 
 interface FloatingPanelProps {
   selectedText: string;
@@ -28,6 +30,160 @@ const SkeletonLoader = () => (
     </div>
   </div>
 );
+
+// Agent status indicator (inline styles for content script)
+const PHASE_LABELS: Record<AgentPhase | 'idle', { label: string; icon: string }> = {
+  idle: { label: 'Ready', icon: '⏸️' },
+  thinking: { label: 'Thinking', icon: '🧠' },
+  executing: { label: 'Executing', icon: '⚡' },
+  analyzing: { label: 'Analyzing', icon: '🔍' },
+  reflecting: { label: 'Reflecting', icon: '💭' },
+  synthesizing: { label: 'Synthesizing', icon: '✨' },
+};
+
+interface AgentStatusIndicatorProps {
+  phase: AgentPhase | 'idle';
+  step: { current: number; max: number };
+  currentTool?: string;
+  degradedMode?: boolean;
+  degradedReason?: string;
+  onCancel?: () => void;
+}
+
+const AgentStatusIndicator = ({
+  phase,
+  step,
+  currentTool,
+  degradedMode,
+  degradedReason,
+  onCancel,
+}: AgentStatusIndicatorProps) => {
+  const config = PHASE_LABELS[phase];
+  const isRunning = phase !== 'idle';
+  const progressPercent = step.max > 0 ? Math.round((step.current / step.max) * 100) : 0;
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {/* Status header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '10px 12px',
+          background: isRunning
+            ? 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.1) 100%)'
+            : 'rgba(249,250,251,1)',
+          borderRadius: 10,
+          marginBottom: 8,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 16 }}>{config.icon}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#4c1d95' }}>{config.label}</span>
+          {isRunning && currentTool && (
+            <span style={{ fontSize: 12, color: '#6b7280' }}>· {currentTool}</span>
+          )}
+          {isRunning && (
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: '#667eea',
+                animation: 'kl-pulse 1.5s infinite',
+              }}
+            />
+          )}
+        </div>
+        {isRunning && onCancel && (
+          <button
+            onClick={onCancel}
+            style={{
+              padding: '4px 8px',
+              fontSize: 11,
+              color: '#6b7280',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 4,
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#dc2626';
+              e.currentTarget.style.background = 'rgba(220,38,38,0.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#6b7280';
+              e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+
+      {/* Progress bar */}
+      {isRunning && (
+        <div style={{ padding: '0 4px' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: 11,
+              color: '#6b7280',
+              marginBottom: 4,
+            }}
+          >
+            <span>
+              Step {step.current} of {step.max}
+            </span>
+            <span>{progressPercent}%</span>
+          </div>
+          <div
+            style={{
+              height: 4,
+              background: 'rgba(0,0,0,0.06)',
+              borderRadius: 2,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: `${progressPercent}%`,
+                background: 'linear-gradient(90deg, #667eea, #764ba2)',
+                borderRadius: 2,
+                transition: 'width 0.3s ease',
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Degraded mode warning */}
+      {degradedMode && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: '8px 10px',
+            background: 'rgba(251,191,36,0.1)',
+            border: '1px solid rgba(251,191,36,0.3)',
+            borderRadius: 8,
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 8,
+          }}
+        >
+          <span style={{ fontSize: 14 }}>⚠️</span>
+          <div style={{ fontSize: 12, color: '#92400e' }}>
+            <span style={{ fontWeight: 600 }}>Degraded Mode</span>
+            {degradedReason && <p style={{ margin: '4px 0 0 0' }}>{degradedReason}</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Drag hook
 function useDrag(initialPos: { x: number; y: number }) {
@@ -114,8 +270,18 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
   const [content, setContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [requestId, setRequestId] = useState<string | null>(null);
+  // sessionId is used for agent operations (set when agent_execute is called)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+
+  // Agent status state
+  const [agentPhase, setAgentPhase] = useState<AgentPhase | 'idle'>('idle');
+  const [agentStep, setAgentStep] = useState({ current: 0, max: 5 });
+  const [agentTool, setAgentTool] = useState<string | undefined>();
+  const [degradedMode, setDegradedMode] = useState(false);
+  const [degradedReason, setDegradedReason] = useState<string | undefined>();
 
   const { position, isDragging, handleMouseDown } = useDrag({
     x: Math.max(20, window.innerWidth - 460),
@@ -140,28 +306,58 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
   }, [mode, selectedText, context]);
 
   useEffect(() => {
-    const handleMessage = (message: StreamingMessage) => {
-      if (!requestId || message.requestId !== requestId) return;
-      switch (message.type) {
-        case 'streaming_start':
-          setStatus('streaming');
-          setContent('');
-          break;
-        case 'streaming_chunk':
-          if (message.chunk) setContent((prev) => prev + message.chunk);
-          break;
-        case 'streaming_end':
-          setStatus('done');
-          break;
-        case 'streaming_error':
-          setError(message.error || 'An error occurred');
-          setStatus('error');
-          break;
+    const handleMessage = (message: StreamingMessage | AgentStatusMessage) => {
+      // Handle streaming messages
+      if ('requestId' in message && requestId && message.requestId === requestId) {
+        const streamMsg = message as StreamingMessage;
+        switch (streamMsg.type) {
+          case 'streaming_start':
+            setStatus('streaming');
+            setContent('');
+            break;
+          case 'streaming_chunk':
+            if (streamMsg.chunk) setContent((prev) => prev + streamMsg.chunk);
+            break;
+          case 'streaming_end':
+            setStatus('done');
+            break;
+          case 'streaming_error':
+            setError(streamMsg.error || 'An error occurred');
+            setStatus('error');
+            break;
+        }
+      }
+
+      // Handle agent status messages
+      if ('sessionId' in message && sessionId && message.sessionId === sessionId) {
+        const agentMsg = message as AgentStatusMessage;
+        switch (agentMsg.type) {
+          case 'agent_status_update':
+            setStatus('agent_running');
+            if (agentMsg.phase) setAgentPhase(agentMsg.phase);
+            if (agentMsg.stepNumber !== undefined && agentMsg.maxSteps !== undefined) {
+              setAgentStep({ current: agentMsg.stepNumber, max: agentMsg.maxSteps });
+            }
+            setAgentTool(agentMsg.currentTool);
+            if (agentMsg.degradedMode !== undefined) setDegradedMode(agentMsg.degradedMode);
+            if (agentMsg.degradedReason) setDegradedReason(agentMsg.degradedReason);
+            break;
+          case 'agent_complete':
+            setStatus('done');
+            setAgentPhase('idle');
+            if (agentMsg.result) setContent(agentMsg.result);
+            break;
+          case 'agent_error':
+            setError(agentMsg.error || 'Agent error occurred');
+            setStatus('error');
+            setAgentPhase('idle');
+            break;
+        }
       }
     };
     chrome.runtime.onMessage.addListener(handleMessage);
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
-  }, [requestId]);
+  }, [requestId, sessionId]);
 
   useEffect(() => {
     sendRequest();
@@ -171,8 +367,20 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
     return () => {
       if (requestId)
         chrome.runtime.sendMessage({ action: 'cancel_request', payload: { requestId } });
+      if (sessionId) chrome.runtime.sendMessage({ action: 'agent_cancel', payload: { sessionId } });
     };
-  }, [requestId]);
+  }, [requestId, sessionId]);
+
+  const handleCancel = () => {
+    if (requestId) {
+      chrome.runtime.sendMessage({ action: 'cancel_request', payload: { requestId } });
+    }
+    if (sessionId) {
+      chrome.runtime.sendMessage({ action: 'agent_cancel', payload: { sessionId } });
+    }
+    setStatus('done');
+    setAgentPhase('idle');
+  };
 
   const handleCopy = async () => {
     if (!content) return;
@@ -380,6 +588,36 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
           >
             {status === 'loading' && <SkeletonLoader />}
 
+            {status === 'agent_running' && (
+              <>
+                <AgentStatusIndicator
+                  phase={agentPhase}
+                  step={agentStep}
+                  currentTool={agentTool}
+                  degradedMode={degradedMode}
+                  degradedReason={degradedReason}
+                  onCancel={handleCancel}
+                />
+                {content && (
+                  <article className="kl-markdown" style={{ opacity: 0.8 }}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: 8,
+                        height: 18,
+                        background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                        borderRadius: 2,
+                        marginLeft: 2,
+                        verticalAlign: 'text-bottom',
+                        animation: 'kl-blink 1s infinite',
+                      }}
+                    />
+                  </article>
+                )}
+              </>
+            )}
+
             {(status === 'streaming' || status === 'done') && (
               <article className="kl-markdown">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
@@ -537,8 +775,11 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
         </>
       )}
 
-      {/* Blink animation */}
-      <style>{`@keyframes kl-blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0.3; } }`}</style>
+      {/* Animations */}
+      <style>{`
+        @keyframes kl-blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0.3; } }
+        @keyframes kl-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+      `}</style>
     </div>
   );
 }

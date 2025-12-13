@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.2](https://github.com/PeterFile/KnowledgeLens/compare/v0.1.1...v0.1.2) (2025-12-13)
+
+
+### Bug Fixes
+
+* screenshot tool and note card generation improvements ([#21](https://github.com/PeterFile/KnowledgeLens/issues/21)) ([b1fecf8](https://github.com/PeterFile/KnowledgeLens/commit/b1fecf8c220c8adc84f4ab5054275a03d5fddc9e))
+
+
+### Refactors
+
+* **content:** unify ProcessingPanel style and add interactive features ([#22](https://github.com/PeterFile/KnowledgeLens/issues/22)) ([e353235](https://github.com/PeterFile/KnowledgeLens/commit/e353235d5b095afa4ea1a30c7a2580ad40ee5a94)), closes [#4F46E5](https://github.com/PeterFile/KnowledgeLens/issues/4F46E5) [#FFFDF5](https://github.com/PeterFile/KnowledgeLens/issues/FFFDF5)
+
 ### [0.1.1](https://github.com/PeterFile/KnowledgeLens/compare/v0.1.0...v0.1.1) (2025-12-13)
 
 

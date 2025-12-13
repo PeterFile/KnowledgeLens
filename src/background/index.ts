@@ -244,7 +244,7 @@ async function handleSummarize(
     );
 
     // Send the final response as streaming chunks for UI compatibility
-    const chunks = result.response.match(/.{1,100}/g) || [result.response];
+    const chunks = result.response.match(/[\s\S]{1,100}/g) || [result.response];
     for (const chunk of chunks) {
       sendStreamingMessage({
         type: 'streaming_chunk',
@@ -344,7 +344,7 @@ async function handleExplain(
     usedAgent = result.usedAgent;
 
     // Send the final response as streaming chunks for UI compatibility
-    const chunks = result.response.match(/.{1,100}/g) || [result.response];
+    const chunks = result.response.match(/[\s\S]{1,100}/g) || [result.response];
     for (const chunk of chunks) {
       sendStreamingMessage(
         {
@@ -448,7 +448,7 @@ async function handleSearchEnhance(
     );
 
     // Send the final response as streaming chunks for UI compatibility
-    const chunks = result.response.match(/.{1,100}/g) || [result.response];
+    const chunks = result.response.match(/[\s\S]{1,100}/g) || [result.response];
     for (const chunk of chunks) {
       sendStreamingMessage(
         {
@@ -590,7 +590,7 @@ async function handleExtractScreenshot(
     );
 
     // Send the final response as streaming chunks for UI compatibility
-    const chunks = result.response.match(/.{1,100}/g) || [result.response];
+    const chunks = result.response.match(/[\s\S]{1,100}/g) || [result.response];
     for (const chunk of chunks) {
       sendStreamingMessage({
         type: 'streaming_chunk',

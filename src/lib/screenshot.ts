@@ -21,7 +21,7 @@ async function hasOffscreenDocument(): Promise<boolean> {
 /**
  * Create offscreen document if it doesn't exist
  */
-async function ensureOffscreenDocument(): Promise<void> {
+export async function ensureOffscreenDocument(): Promise<void> {
   if (await hasOffscreenDocument()) {
     return;
   }

@@ -23,8 +23,8 @@ import type {
 import { callLLMWithMessages } from '../lib/api';
 import { loadSettings } from '../lib/storage';
 import * as requestManager from '../lib/request-manager';
-import { captureAndCropScreenshot } from '../lib/screenshot';
-import { generateNoteCard, type NoteCardData } from '../lib/notecard';
+import { captureAndCropScreenshot, ensureOffscreenDocument } from '../lib/screenshot';
+import type { NoteCardData } from '../lib/notecard';
 import {
   runAgentLoop,
   createAgentConfig,
@@ -634,6 +634,7 @@ async function handleExtractScreenshot(
 
 /**
  * Handle note card generation
+ * Uses offscreen document for Canvas/Image operations (Service Worker has no DOM)
  * Requirements: 7.1, 7.2, 7.3
  */
 async function handleGenerateNoteCard(
@@ -671,7 +672,7 @@ async function handleGenerateNoteCard(
       }
     }
 
-    // Generate the note card
+    // Prepare note card data
     const noteCardData: NoteCardData = {
       screenshot: payload.imageBase64,
       title: payload.pageTitle,
@@ -680,14 +681,25 @@ async function handleGenerateNoteCard(
       sourceUrl: payload.pageUrl,
     };
 
-    const noteCard = await generateNoteCard(noteCardData);
+    // Ensure offscreen document exists for Canvas operations
+    await ensureOffscreenDocument();
+
+    // Send to offscreen document for note card generation
+    const response = await chrome.runtime.sendMessage({
+      action: 'generate_note_card',
+      data: noteCardData,
+    });
+
+    if (!response.success) {
+      throw new Error(response.error || 'Failed to generate note card');
+    }
 
     sendResponse({
       success: true,
       data: {
-        imageDataUrl: noteCard.imageDataUrl,
-        width: noteCard.width,
-        height: noteCard.height,
+        imageDataUrl: response.imageDataUrl,
+        width: response.width,
+        height: response.height,
       },
       requestId: request.id,
     });

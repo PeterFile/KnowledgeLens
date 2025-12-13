@@ -1,6 +1,6 @@
 // Processing Panel component for screenshot analysis
 // Requirements: 5.4, 6.1, 6.2, 6.3, 6.4, 7.1, 7.2, 7.3, 7.4
-// Style: Unified Neo-Brutalism with FloatingPanel
+// Style: Unified Neo-Brutalism with FloatingPanel - Draggable & Resizable
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -97,49 +97,161 @@ const SkeletonLoader = () => (
   </div>
 );
 
-// Action button with Neo-Brutalism style
+// Drag hook - reused from FloatingPanel
+function useDrag(initialPos: { x: number; y: number }) {
+  const [position, setPosition] = useState(initialPos);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      setIsDragging(true);
+      dragOffset.current = { x: e.clientX - position.x, y: e.clientY - position.y };
+    },
+    [position]
+  );
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const handleMove = (e: MouseEvent) => {
+      setPosition({
+        x: Math.max(0, Math.min(window.innerWidth - 100, e.clientX - dragOffset.current.x)),
+        y: Math.max(0, Math.min(window.innerHeight - 50, e.clientY - dragOffset.current.y)),
+      });
+    };
+    const handleUp = () => setIsDragging(false);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [isDragging]);
+
+  return { position, isDragging, handleMouseDown };
+}
+
+// Resize hook - reused from FloatingPanel
+function useResize(initialSize: { width: number; height: number }) {
+  const [size, setSize] = useState(initialSize);
+  const [isResizing, setIsResizing] = useState(false);
+  const startInfo = useRef({ x: 0, y: 0, width: 0, height: 0 });
+
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsResizing(true);
+      startInfo.current = { x: e.clientX, y: e.clientY, width: size.width, height: size.height };
+    },
+    [size]
+  );
+
+  useEffect(() => {
+    if (!isResizing) return;
+    const handleMove = (e: MouseEvent) => {
+      setSize({
+        width: Math.max(
+          360,
+          Math.min(700, startInfo.current.width + (e.clientX - startInfo.current.x))
+        ),
+        height: Math.max(
+          400,
+          Math.min(
+            window.innerHeight - 60,
+            startInfo.current.height + (e.clientY - startInfo.current.y)
+          )
+        ),
+      });
+    };
+    const handleUp = () => setIsResizing(false);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [isResizing]);
+
+  return { size, isResizing, handleResizeStart };
+}
+
+// Button styles with hover/active animations matching SettingsView
+const buttonBaseStyle: React.CSSProperties = {
+  position: 'relative',
+  padding: '8px 16px',
+  fontSize: '12px',
+  fontWeight: 700,
+  fontFamily: '"Space Grotesk", sans-serif',
+  textTransform: 'uppercase',
+  border: '1px solid #000',
+  borderRadius: '4px',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '6px',
+  transition: 'all 150ms ease-out',
+};
+
+// Action button with hover effects
 const ActionButton = ({
   onClick,
   disabled,
   primary,
   children,
-  active,
 }: {
   onClick: () => void;
   disabled?: boolean;
   primary?: boolean;
   children: React.ReactNode;
-  active?: boolean;
-}) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    style={{
-      flex: 1,
-      padding: '8px 12px',
-      background: active ? '#10B981' : primary ? '#000' : '#fff',
-      border: '1px solid #000',
-      color: primary || active ? '#fff' : '#000',
-      fontSize: '12px',
-      fontWeight: 700,
-      fontFamily: '"Space Grotesk", sans-serif',
-      textTransform: 'uppercase',
-      cursor: disabled ? 'not-allowed' : 'pointer',
-      opacity: disabled ? 0.5 : 1,
-      boxShadow: active ? 'none' : primary ? '2px 2px 0 0 #4F46E5' : '2px 2px 0 0 #000',
-      transform: active ? 'translate(1px, 1px)' : 'none',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '6px',
-      transition: 'all 0.1s',
-    }}
-  >
-    {children}
-  </button>
-);
+}) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isPressed, setIsPressed] = useState(false);
 
-// Small button for secondary actions
+  const getTransform = () => {
+    if (disabled) return 'none';
+    if (isPressed) return 'translate(1px, 1px)';
+    if (isHovered) return 'translate(-1px, -1px)';
+    return 'none';
+  };
+
+  const getShadow = () => {
+    if (disabled) return '2px 2px 0 0 #ccc';
+    if (isPressed) return '0 0 0 0 #000';
+    if (isHovered) return '3px 3px 0 0 #000';
+    return '2px 2px 0 0 #000';
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setIsPressed(false);
+      }}
+      onMouseDown={() => setIsPressed(true)}
+      onMouseUp={() => setIsPressed(false)}
+      style={{
+        ...buttonBaseStyle,
+        flex: 1,
+        background: primary ? '#000' : '#fff',
+        color: primary ? '#fff' : '#000',
+        opacity: disabled ? 0.5 : 1,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        transform: getTransform(),
+        boxShadow: getShadow(),
+      }}
+    >
+      {children}
+    </button>
+  );
+};
+
+// Small button for secondary actions with hover effects
 const SmallButton = ({
   onClick,
   children,
@@ -150,30 +262,63 @@ const SmallButton = ({
   children: React.ReactNode;
   active?: boolean;
   primary?: boolean;
-}) => (
-  <button
-    onClick={onClick}
-    style={{
-      padding: '4px 10px',
-      background: active ? '#10B981' : primary ? '#4F46E5' : '#fff',
-      border: '1px solid #000',
-      color: active || primary ? '#fff' : '#000',
-      fontSize: '11px',
-      fontWeight: 700,
-      fontFamily: '"JetBrains Mono", monospace',
-      textTransform: 'uppercase',
-      cursor: 'pointer',
-      boxShadow: active ? 'none' : '1px 1px 0 0 #000',
-      transform: active ? 'translate(1px, 1px)' : 'none',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '4px',
-      transition: 'all 0.1s',
-    }}
-  >
-    {children}
-  </button>
-);
+}) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isPressed, setIsPressed] = useState(false);
+
+  const getTransform = () => {
+    if (active) return 'translate(1px, 1px)';
+    if (isPressed) return 'translate(1px, 1px)';
+    if (isHovered) return 'translate(-1px, -1px)';
+    return 'none';
+  };
+
+  const getShadow = () => {
+    if (active || isPressed) return '0 0 0 0 #000';
+    if (isHovered) return '2px 2px 0 0 #000';
+    return '1px 1px 0 0 #000';
+  };
+
+  const getBg = () => {
+    if (active) return '#10B981';
+    if (primary) return '#4F46E5';
+    if (isHovered) return '#F9FAFB';
+    return '#fff';
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setIsPressed(false);
+      }}
+      onMouseDown={() => setIsPressed(true)}
+      onMouseUp={() => setIsPressed(false)}
+      style={{
+        padding: '4px 10px',
+        background: getBg(),
+        border: '1px solid #000',
+        borderRadius: '4px',
+        color: active || primary ? '#fff' : '#000',
+        fontSize: '11px',
+        fontWeight: 700,
+        fontFamily: '"JetBrains Mono", monospace',
+        textTransform: 'uppercase',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        transition: 'all 150ms ease-out',
+        transform: getTransform(),
+        boxShadow: getShadow(),
+      }}
+    >
+      {children}
+    </button>
+  );
+};
 
 export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
   const [mode, setMode] = useState<PanelMode>('idle');
@@ -183,8 +328,18 @@ export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
   const [copied, setCopied] = useState(false);
   const [noteCard, setNoteCard] = useState<NoteCardResult | null>(null);
   const [noteCardCopied, setNoteCardCopied] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   const requestIdRef = useRef<string | null>(null);
+
+  // Draggable and resizable - positioned at right side initially
+  const { position, isDragging, handleMouseDown } = useDrag({
+    x: Math.max(20, window.innerWidth - 440),
+    y: Math.max(20, (window.innerHeight - 550) / 2),
+  });
+  const { size, isResizing, handleResizeStart } = useResize({ width: 420, height: 550 });
+
+  const isInteracting = isDragging || isResizing;
 
   useEffect(() => {
     requestIdRef.current = requestId;
@@ -222,10 +377,7 @@ export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
   useEffect(() => {
     return () => {
       if (requestId) {
-        chrome.runtime.sendMessage({
-          action: 'cancel_request',
-          payload: { requestId },
-        });
+        chrome.runtime.sendMessage({ action: 'cancel_request', payload: { requestId } });
       }
     };
   }, [requestId]);
@@ -236,10 +388,7 @@ export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
     setError(null);
 
     chrome.runtime.sendMessage(
-      {
-        action: 'extract_screenshot',
-        payload: { imageBase64: screenshot.imageBase64 },
-      },
+      { action: 'extract_screenshot', payload: { imageBase64: screenshot.imageBase64 } },
       (response) => {
         if (response?.success && response.data?.requestId) {
           setRequestId(response.data.requestId);
@@ -286,7 +435,7 @@ export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard API might fail
+      /* ignore */
     }
   };
 
@@ -314,42 +463,47 @@ export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
       setNoteCardCopied(true);
       setTimeout(() => setNoteCardCopied(false), 2000);
     } catch {
-      // Clipboard API might fail
+      /* ignore */
     }
   };
 
   const isDisabled = mode === 'loading' || mode === 'streaming';
 
+  // Panel styles - matching FloatingPanel
+  const panelStyle: React.CSSProperties = {
+    position: 'fixed',
+    left: position.x,
+    top: position.y,
+    width: collapsed ? 300 : size.width,
+    height: collapsed ? 'auto' : size.height,
+    zIndex: 999998,
+    display: 'flex',
+    flexDirection: 'column',
+    fontFamily: '"Space Grotesk", sans-serif',
+    background: '#FFFDF5',
+    border: '1px solid #000',
+    borderRadius: '6px',
+    boxShadow: isDragging ? '4px 4px 0px rgba(0,0,0,0.5)' : '2px 2px 0px #000',
+    transition: 'box-shadow 0.1s, width 0.1s, height 0.1s',
+    userSelect: isInteracting ? 'none' : 'auto',
+  };
+
   return (
-    <div
-      data-knowledgelens="processing-panel"
-      style={{
-        position: 'fixed',
-        right: 0,
-        top: 0,
-        height: '100%',
-        width: '400px',
-        maxWidth: '100vw',
-        background: '#FFFDF5',
-        border: '1px solid #000',
-        borderRight: 'none',
-        boxShadow: '-4px 0 0 0 #000',
-        zIndex: 999998,
-        display: 'flex',
-        flexDirection: 'column',
-        fontFamily: '"Space Grotesk", sans-serif',
-      }}
-    >
-      {/* Header - Neo-Brutalism style matching FloatingPanel */}
+    <div data-knowledgelens="processing-panel" style={panelStyle}>
+      {/* Header - Draggable */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '12px 16px',
+          padding: '10px 14px',
           background: '#4F46E5',
           borderBottom: '1px solid #000',
+          borderRadius: '5px 5px 0 0',
+          cursor: isDragging ? 'grabbing' : 'grab',
+          flexShrink: 0,
         }}
+        onMouseDown={handleMouseDown}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div
@@ -373,290 +527,296 @@ export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
             SCREENSHOT
           </span>
         </div>
-        <button
-          onClick={onClose}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: '#fff',
-            cursor: 'pointer',
-            padding: '4px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <CloseIcon />
-        </button>
-      </div>
-
-      {/* Screenshot preview */}
-      <div
-        style={{
-          padding: '12px',
-          background: '#fff',
-          borderBottom: '1px solid #000',
-        }}
-      >
-        <div
-          style={{
-            border: '1px solid #000',
-            boxShadow: '2px 2px 0 0 #000',
-            overflow: 'hidden',
-          }}
-        >
-          <img
-            src={`data:image/png;base64,${screenshot.imageBase64}`}
-            alt="Captured screenshot"
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={() => setCollapsed(!collapsed)}
             style={{
-              width: '100%',
-              maxHeight: '180px',
-              objectFit: 'contain',
-              display: 'block',
-              background: '#F3F4F6',
+              background: 'transparent',
+              border: 'none',
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold',
             }}
-          />
-        </div>
-        <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
-          <SmallButton onClick={handleDownloadImage}>
-            <DownloadIcon />
-            <span>Download</span>
-          </SmallButton>
-        </div>
-      </div>
-
-      {/* AI Actions */}
-      <div
-        style={{
-          padding: '12px 16px',
-          borderBottom: '1px solid #000',
-          background: '#fff',
-        }}
-      >
-        <div
-          style={{
-            fontSize: '10px',
-            fontWeight: 700,
-            color: '#000',
-            marginBottom: '10px',
-            fontFamily: '"JetBrains Mono", monospace',
-            textTransform: 'uppercase',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
-        >
-          <span style={{ background: '#000', color: '#fff', padding: '1px 4px' }}>AI</span>
-          <span>Analysis</span>
-        </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <ActionButton onClick={handleExtractText} disabled={isDisabled} primary>
-            <ExtractIcon />
-            <span>Extract</span>
-          </ActionButton>
-          <ActionButton onClick={handleGenerateNoteCard} disabled={isDisabled}>
-            <NoteCardIcon />
-            <span>Note Card</span>
-          </ActionButton>
+          >
+            {collapsed ? '□' : '_'}
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#fff',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+            }}
+          >
+            <CloseIcon />
+          </button>
         </div>
       </div>
 
-      {/* Content area */}
-      <div
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          minHeight: 0,
-          background: '#FAFAFA',
-        }}
-      >
-        {mode === 'loading' && <SkeletonLoader />}
-
-        {(mode === 'streaming' || mode === 'success') && extractedText && (
-          <div style={{ padding: '16px' }}>
+      {!collapsed && (
+        <>
+          {/* Screenshot preview */}
+          <div style={{ padding: '12px', background: '#fff', borderBottom: '1px solid #000' }}>
             <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '12px',
-              }}
-            >
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  fontFamily: '"JetBrains Mono", monospace',
-                  textTransform: 'uppercase',
-                  background: '#000',
-                  color: '#fff',
-                  padding: '2px 6px',
-                }}
-              >
-                Extracted
-              </span>
-              <SmallButton onClick={handleCopyText} active={copied}>
-                <CopyIcon />
-                <span>{copied ? 'Copied' : 'Copy'}</span>
-              </SmallButton>
-            </div>
-            <div
-              className="kl-markdown"
-              style={{
-                background: '#fff',
                 border: '1px solid #000',
-                padding: '16px',
-                boxShadow: '2px 2px 0 0 #ccc',
-              }}
-            >
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{extractedText}</ReactMarkdown>
-              {mode === 'streaming' && (
-                <span
-                  style={{
-                    display: 'inline-block',
-                    width: '8px',
-                    height: '16px',
-                    background: '#4F46E5',
-                    marginLeft: '4px',
-                    animation: 'blink 1s step-end infinite',
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        )}
-
-        {mode === 'notecard' && noteCard && (
-          <div style={{ padding: '16px' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '12px',
-              }}
-            >
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  fontFamily: '"JetBrains Mono", monospace',
-                  textTransform: 'uppercase',
-                  background: '#000',
-                  color: '#fff',
-                  padding: '2px 6px',
-                }}
-              >
-                Note Card
-              </span>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <SmallButton onClick={handleCopyNoteCard} active={noteCardCopied}>
-                  <CopyIcon />
-                  <span>{noteCardCopied ? 'Copied' : 'Copy'}</span>
-                </SmallButton>
-                <SmallButton onClick={handleDownloadNoteCard} primary>
-                  <DownloadIcon />
-                  <span>Download</span>
-                </SmallButton>
-              </div>
-            </div>
-            <div
-              style={{
-                background: '#fff',
-                border: '1px solid #000',
-                padding: '12px',
-                boxShadow: '2px 2px 0 0 #ccc',
+                boxShadow: '2px 2px 0 0 #000',
+                overflow: 'hidden',
               }}
             >
               <img
-                src={noteCard.imageDataUrl}
-                alt="Generated note card"
+                src={`data:image/png;base64,${screenshot.imageBase64}`}
+                alt="Captured screenshot"
                 style={{
                   width: '100%',
+                  maxHeight: '160px',
+                  objectFit: 'contain',
                   display: 'block',
+                  background: '#F3F4F6',
                 }}
               />
             </div>
-          </div>
-        )}
-
-        {mode === 'error' && (
-          <div style={{ padding: '16px' }}>
-            <div
-              style={{
-                border: '1px solid #000',
-                background: '#FEF2F2',
-                padding: '12px',
-                color: '#DC2626',
-                fontFamily: '"JetBrains Mono", monospace',
-                fontSize: '12px',
-                boxShadow: '2px 2px 0 0 #000',
-              }}
-            >
-              ERROR: {error}
+            <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
+              <SmallButton onClick={handleDownloadImage}>
+                <DownloadIcon />
+                <span>Download</span>
+              </SmallButton>
             </div>
           </div>
-        )}
 
-        {mode === 'idle' && (
+          {/* AI Actions */}
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid #000', background: '#fff' }}>
+            <div
+              style={{
+                fontSize: '10px',
+                fontWeight: 700,
+                color: '#000',
+                marginBottom: '10px',
+                fontFamily: '"JetBrains Mono", monospace',
+                textTransform: 'uppercase',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span style={{ background: '#000', color: '#fff', padding: '1px 4px' }}>AI</span>
+              <span>Analysis</span>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <ActionButton onClick={handleExtractText} disabled={isDisabled} primary>
+                <ExtractIcon />
+                <span>Extract</span>
+              </ActionButton>
+              <ActionButton onClick={handleGenerateNoteCard} disabled={isDisabled}>
+                <NoteCardIcon />
+                <span>Note Card</span>
+              </ActionButton>
+            </div>
+          </div>
+
+          {/* Content area */}
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, background: '#FAFAFA' }}>
+            {mode === 'loading' && <SkeletonLoader />}
+
+            {(mode === 'streaming' || mode === 'success') && extractedText && (
+              <div style={{ padding: '16px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '12px',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      fontFamily: '"JetBrains Mono", monospace',
+                      textTransform: 'uppercase',
+                      background: '#000',
+                      color: '#fff',
+                      padding: '2px 6px',
+                    }}
+                  >
+                    Extracted
+                  </span>
+                  <SmallButton onClick={handleCopyText} active={copied}>
+                    <CopyIcon />
+                    <span>{copied ? 'Copied' : 'Copy'}</span>
+                  </SmallButton>
+                </div>
+                <div
+                  className="kl-markdown"
+                  style={{
+                    background: '#fff',
+                    border: '1px solid #000',
+                    padding: '16px',
+                    boxShadow: '2px 2px 0 0 #ccc',
+                  }}
+                >
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{extractedText}</ReactMarkdown>
+                  {mode === 'streaming' && (
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: '8px',
+                        height: '16px',
+                        background: '#4F46E5',
+                        marginLeft: '4px',
+                        animation: 'blink 1s step-end infinite',
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {mode === 'notecard' && noteCard && (
+              <div style={{ padding: '16px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '12px',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      fontFamily: '"JetBrains Mono", monospace',
+                      textTransform: 'uppercase',
+                      background: '#000',
+                      color: '#fff',
+                      padding: '2px 6px',
+                    }}
+                  >
+                    Note Card
+                  </span>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <SmallButton onClick={handleCopyNoteCard} active={noteCardCopied}>
+                      <CopyIcon />
+                      <span>{noteCardCopied ? 'Copied' : 'Copy'}</span>
+                    </SmallButton>
+                    <SmallButton onClick={handleDownloadNoteCard} primary>
+                      <DownloadIcon />
+                      <span>Download</span>
+                    </SmallButton>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    background: '#fff',
+                    border: '1px solid #000',
+                    padding: '12px',
+                    boxShadow: '2px 2px 0 0 #ccc',
+                  }}
+                >
+                  <img
+                    src={noteCard.imageDataUrl}
+                    alt="Generated note card"
+                    style={{ width: '100%', display: 'block' }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {mode === 'error' && (
+              <div style={{ padding: '16px' }}>
+                <div
+                  style={{
+                    border: '1px solid #000',
+                    background: '#FEF2F2',
+                    padding: '12px',
+                    color: '#DC2626',
+                    fontFamily: '"JetBrains Mono", monospace',
+                    fontSize: '12px',
+                    boxShadow: '2px 2px 0 0 #000',
+                  }}
+                >
+                  ERROR: {error}
+                </div>
+              </div>
+            )}
+
+            {mode === 'idle' && (
+              <div style={{ padding: '32px 16px', textAlign: 'center' }}>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: '#666',
+                    fontFamily: '"JetBrains Mono", monospace',
+                  }}
+                >
+                  Select an AI action above to analyze this screenshot
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer - Source info */}
           <div
             style={{
-              padding: '32px 16px',
-              textAlign: 'center',
+              padding: '10px 16px',
+              borderTop: '1px solid #000',
+              background: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              borderRadius: '0 0 5px 5px',
             }}
           >
-            <div
+            <span
               style={{
-                fontSize: '12px',
-                color: '#666',
+                fontSize: '10px',
+                fontWeight: 700,
                 fontFamily: '"JetBrains Mono", monospace',
+                background: '#E5E7EB',
+                padding: '2px 4px',
+                border: '1px solid #000',
               }}
             >
-              Select an AI action above to analyze this screenshot
-            </div>
+              SRC
+            </span>
+            <span
+              style={{
+                fontSize: '11px',
+                color: '#374151',
+                fontFamily: '"JetBrains Mono", monospace',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flex: 1,
+              }}
+            >
+              {screenshot.pageTitle || screenshot.pageUrl}
+            </span>
           </div>
-        )}
-      </div>
 
-      {/* Footer - Source info */}
-      <div
-        style={{
-          padding: '10px 16px',
-          borderTop: '1px solid #000',
-          background: '#fff',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-        }}
-      >
-        <span
-          style={{
-            fontSize: '10px',
-            fontWeight: 700,
-            fontFamily: '"JetBrains Mono", monospace',
-            background: '#E5E7EB',
-            padding: '2px 4px',
-            border: '1px solid #000',
-          }}
-        >
-          SRC
-        </span>
-        <span
-          style={{
-            fontSize: '11px',
-            color: '#374151',
-            fontFamily: '"JetBrains Mono", monospace',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            flex: 1,
-          }}
-        >
-          {screenshot.pageTitle || screenshot.pageUrl}
-        </span>
-      </div>
+          {/* Resize Grip */}
+          <div
+            onMouseDown={handleResizeStart}
+            style={{
+              position: 'absolute',
+              bottom: 2,
+              right: 2,
+              width: 12,
+              height: 12,
+              cursor: 'se-resize',
+              background: 'linear-gradient(135deg, transparent 50%, #000 50%)',
+              opacity: 0.5,
+            }}
+          />
+        </>
+      )}
 
-      {/* Shared markdown styles */}
+      {/* Shared styles */}
       <style>{`
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
         
@@ -676,18 +836,11 @@ export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
           color: #000;
           letter-spacing: -0.02em;
         }
-        .kl-markdown h1 { 
-          font-size: 1.25em; 
-          border-bottom: 2px solid #000; 
-          padding-bottom: 4px;
-          text-transform: uppercase;
-        }
+        .kl-markdown h1 { font-size: 1.25em; border-bottom: 2px solid #000; padding-bottom: 4px; text-transform: uppercase; }
         .kl-markdown h2 { font-size: 1.1em; }
         .kl-markdown h3 { font-size: 1em; }
         
-        .kl-markdown p {
-          margin: 0.75em 0;
-        }
+        .kl-markdown p { margin: 0.75em 0; }
         
         .kl-markdown code {
           background: #F3F4F6;
@@ -707,77 +860,24 @@ export function ProcessingPanel({ screenshot, onClose }: ProcessingPanelProps) {
           margin: 1em 0;
           box-shadow: 2px 2px 0 0 #ccc;
         }
-        .kl-markdown pre code {
-          background: none;
-          border: none;
-          padding: 0;
-          color: inherit;
-          font-size: 0.9em;
-        }
+        .kl-markdown pre code { background: none; border: none; padding: 0; color: inherit; font-size: 0.9em; }
         
-        .kl-markdown a {
-          color: #4F46E5;
-          text-decoration: underline;
-          text-decoration-thickness: 2px;
-          font-weight: 600;
-        }
-        .kl-markdown a:hover {
-          background: #EEF2FF;
-        }
+        .kl-markdown a { color: #4F46E5; text-decoration: underline; text-decoration-thickness: 2px; font-weight: 600; }
+        .kl-markdown a:hover { background: #EEF2FF; }
         
-        .kl-markdown blockquote {
-          border-left: 3px solid #000;
-          margin: 1em 0;
-          padding: 0.5em 1em;
-          background: #fff;
-          font-style: italic;
-        }
+        .kl-markdown blockquote { border-left: 3px solid #000; margin: 1em 0; padding: 0.5em 1em; background: #fff; font-style: italic; }
         
-        .kl-markdown ul, .kl-markdown ol {
-          padding-left: 1.5em;
-          margin: 0.75em 0;
-        }
-        .kl-markdown li {
-          margin: 0.25em 0;
-        }
-        .kl-markdown li::marker {
-          color: #4F46E5;
-          font-weight: bold;
-        }
+        .kl-markdown ul, .kl-markdown ol { padding-left: 1.5em; margin: 0.75em 0; }
+        .kl-markdown li { margin: 0.25em 0; }
+        .kl-markdown li::marker { color: #4F46E5; font-weight: bold; }
         
-        .kl-markdown table {
-          width: 100%;
-          border-collapse: collapse;
-          margin: 1em 0;
-          border: 1px solid #000;
-        }
-        .kl-markdown th, .kl-markdown td {
-          border: 1px solid #000;
-          padding: 8px 12px;
-          text-align: left;
-        }
-        .kl-markdown th {
-          background: #000;
-          color: #fff;
-          font-weight: 700;
-          text-transform: uppercase;
-          font-size: 0.85em;
-        }
-        .kl-markdown tr:nth-child(even) {
-          background: #F9FAFB;
-        }
+        .kl-markdown table { width: 100%; border-collapse: collapse; margin: 1em 0; border: 1px solid #000; }
+        .kl-markdown th, .kl-markdown td { border: 1px solid #000; padding: 8px 12px; text-align: left; }
+        .kl-markdown th { background: #000; color: #fff; font-weight: 700; text-transform: uppercase; font-size: 0.85em; }
+        .kl-markdown tr:nth-child(even) { background: #F9FAFB; }
         
-        .kl-markdown hr {
-          border: none;
-          border-top: 2px solid #000;
-          margin: 1.5em 0;
-        }
-        
-        .kl-markdown img {
-          max-width: 100%;
-          border: 1px solid #000;
-          box-shadow: 2px 2px 0 0 #ccc;
-        }
+        .kl-markdown hr { border: none; border-top: 2px solid #000; margin: 1.5em 0; }
+        .kl-markdown img { max-width: 100%; border: 1px solid #000; box-shadow: 2px 2px 0 0 #ccc; }
       `}</style>
     </div>
   );

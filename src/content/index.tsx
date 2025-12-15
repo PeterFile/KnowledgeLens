@@ -230,6 +230,14 @@ function handleExtensionMessage(
     sendResponse({ success: true });
     return true;
   }
+
+  if (message.action === 'get_page_content') {
+    // Simple text extraction for now
+    // Requirements: 1.1 - Text extraction for summary
+    const content = document.body.innerText || '';
+    sendResponse({ content });
+    return true;
+  }
   return false;
 }
 

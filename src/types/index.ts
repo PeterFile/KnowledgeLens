@@ -57,6 +57,7 @@ export type ExtensionMessage =
 export interface SummarizePayload {
   content: string;
   pageUrl: string;
+  requestId?: string;
 }
 
 export interface ExplainPayload {

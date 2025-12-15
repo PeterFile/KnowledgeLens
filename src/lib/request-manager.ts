@@ -15,8 +15,8 @@ function generateId(): string {
 /**
  * Create a new tracked request with AbortController.
  */
-export function create(): ActiveRequest {
-  const id = generateId();
+export function create(requestId?: string): ActiveRequest {
+  const id = requestId || generateId();
   const controller = new AbortController();
   const request: ActiveRequest = {
     id,

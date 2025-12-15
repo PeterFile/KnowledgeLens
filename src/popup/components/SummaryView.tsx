@@ -114,12 +114,6 @@ export function SummaryView({
       const response = await chrome.tabs.sendMessage(tab.id, { action: 'get_page_content' });
       if (!response?.content) throw new Error('Failed to extract page content');
 
-      chrome.runtime.sendMessage({
-        action: 'summarize_page',
-        payload: { content: response.content, pageUrl: tab.url ?? '' },
-        requestId,
-      });
-
       const listener = (message: StreamingMessage) => {
         if (message.requestId !== requestId) return;
 
@@ -153,6 +147,12 @@ export function SummaryView({
       };
 
       chrome.runtime.onMessage.addListener(listener);
+
+      chrome.runtime.sendMessage({
+        action: 'summarize_page',
+        payload: { content: response.content, pageUrl: tab.url ?? '', requestId },
+        requestId,
+      });
     } catch (error) {
       clearTimeout(timeoutId);
       setTimeoutWarning(false);

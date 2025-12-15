@@ -174,7 +174,9 @@ async function handleSummarize(
     return;
   }
 
-  const request = requestManager.create();
+  const request = payload.requestId
+    ? requestManager.create(payload.requestId)
+    : requestManager.create();
 
   sendResponse({
     success: true,

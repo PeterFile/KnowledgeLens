@@ -210,18 +210,17 @@ async function handleSummarize(
           currentTool: status.currentTool,
         });
       },
+      (chunk) => {
+        sendStreamingMessage({
+          type: 'streaming_chunk',
+          requestId: request.id,
+          chunk,
+        });
+      },
       request.controller.signal
     );
 
     // Send the final response as streaming chunks for UI compatibility
-    const chunks = result.response.match(/[\s\S]{1,100}/g) || [result.response];
-    for (const chunk of chunks) {
-      sendStreamingMessage({
-        type: 'streaming_chunk',
-        requestId: request.id,
-        chunk,
-      });
-    }
 
     sendStreamingMessage({
       type: 'streaming_end',
@@ -308,23 +307,20 @@ async function handleExplain(
           );
         }
       },
+      (chunk) => {
+        sendStreamingMessage(
+          {
+            type: 'streaming_chunk',
+            requestId: request.id,
+            chunk,
+          },
+          tabId
+        );
+      },
       request.controller.signal
     );
 
     usedAgent = result.usedAgent;
-
-    // Send the final response as streaming chunks for UI compatibility
-    const chunks = result.response.match(/[\s\S]{1,100}/g) || [result.response];
-    for (const chunk of chunks) {
-      sendStreamingMessage(
-        {
-          type: 'streaming_chunk',
-          requestId: request.id,
-          chunk,
-        },
-        tabId
-      );
-    }
 
     sendStreamingMessage(
       {
@@ -414,21 +410,18 @@ async function handleSearchEnhance(
           tabId
         );
       },
+      (chunk) => {
+        sendStreamingMessage(
+          {
+            type: 'streaming_chunk',
+            requestId: request.id,
+            chunk,
+          },
+          tabId
+        );
+      },
       request.controller.signal
     );
-
-    // Send the final response as streaming chunks for UI compatibility
-    const chunks = result.response.match(/[\s\S]{1,100}/g) || [result.response];
-    for (const chunk of chunks) {
-      sendStreamingMessage(
-        {
-          type: 'streaming_chunk',
-          requestId: request.id,
-          chunk,
-        },
-        tabId
-      );
-    }
 
     sendStreamingMessage(
       {
@@ -560,21 +553,18 @@ async function handleExtractScreenshot(
           currentTool: status.currentTool,
         });
       },
+      (chunk) => {
+        sendStreamingMessage(
+          {
+            type: 'streaming_chunk',
+            requestId: request.id,
+            chunk,
+          },
+          tabId
+        );
+      },
       request.controller.signal
     );
-
-    // Send the final response as streaming chunks for UI compatibility
-    const chunks = result.response.match(/[\s\S]{1,100}/g) || [result.response];
-    for (const chunk of chunks) {
-      sendStreamingMessage(
-        {
-          type: 'streaming_chunk',
-          requestId: request.id,
-          chunk,
-        },
-        tabId
-      );
-    }
 
     sendStreamingMessage(
       {
@@ -656,6 +646,7 @@ async function handleGenerateNoteCard(
               tabId
             );
           },
+          undefined, // No streaming for note card yet
           request.controller.signal
         );
         aiSummary = result.response;
@@ -837,6 +828,7 @@ async function handleAgentExecute(
         memory,
         agentConfig,
         onStatus,
+        undefined,
         combinedSignal
       );
       clearTimeout(timeoutId);

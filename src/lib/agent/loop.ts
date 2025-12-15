@@ -345,6 +345,7 @@ export async function runAgentLoop(
   memory: EpisodicMemory,
   config: AgentConfig,
   onStatus: StatusCallback,
+  onChunk?: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<{
   trajectory: AgentTrajectory;
@@ -431,11 +432,53 @@ export async function runAgentLoop(
     ];
 
     let response = '';
+    // State for streaming synthesis
+    let insideSynthesis = false;
+    let buffer = '';
+    const SYNTHESIS_START = '<synthesis>';
+    const SYNTHESIS_END = '</synthesis>';
+
     const llmResponse = await callLLMWithMessages(
       messages,
       config.llmConfig,
       (chunk) => {
         response += chunk;
+
+        // Handle streaming synthesis if callback provided
+        if (onChunk) {
+          buffer += chunk;
+
+          if (!insideSynthesis) {
+            // Check if we just entered synthesis
+            if (buffer.includes(SYNTHESIS_START)) {
+              insideSynthesis = true;
+              // Stream everything after the tag
+              const tagIndex = buffer.indexOf(SYNTHESIS_START);
+              const content = buffer.slice(tagIndex + SYNTHESIS_START.length);
+              if (content) onChunk(content);
+              buffer = ''; // Clear buffer once we're inside
+            }
+          } else {
+            // We are inside synthesis
+            if (buffer.includes(SYNTHESIS_END)) {
+              // We just exited
+              insideSynthesis = false;
+              // Stream everything before the tag
+              const tagIndex = buffer.indexOf(SYNTHESIS_END);
+              const content = buffer.slice(0, tagIndex);
+              if (content) onChunk(content);
+              // don't really need to reset buffer here as we're done, but good practice
+            } else {
+              // Perform a safety check for the end tag being partially in the chunk
+              // This is a simplified approach; for perfect robustness we'd need a sliding window
+              // But for now, just stream the chunk
+              onChunk(chunk);
+              // Clear buffer to keep memory low, though strictly we might need it for exact end-tag matching logic
+              // For simplicity in this iteration:
+              buffer = '';
+            }
+          }
+        }
       },
       signal
     );

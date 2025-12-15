@@ -26,6 +26,8 @@ export interface AgentStatus {
 
 export type StatusCallback = (status: AgentStatus) => void;
 
+export type StreamingCallback = (chunk: string) => void;
+
 // ============================================================================
 // Agent Steps & Trajectory
 // ============================================================================

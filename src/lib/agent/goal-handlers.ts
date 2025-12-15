@@ -137,6 +137,7 @@ export async function handleSummarizeGoal(
   params: SummarizeGoalParams,
   llmConfig: LLMConfig,
   onStatus: StatusCallback,
+  onChunk?: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<GoalHandlerResult> {
   const sessionId = `summarize_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -147,11 +148,11 @@ export async function handleSummarizeGoal(
 
   if (!useAgent) {
     // Simple content - use direct LLM call for efficiency
-    return handleSimpleSummarize(params, llmConfig, sessionId, goal, onStatus, signal);
+    return handleSimpleSummarize(params, llmConfig, sessionId, goal, onStatus, onChunk, signal);
   }
 
   // Complex content - use full agent loop
-  return handleAgentSummarize(params, llmConfig, sessionId, goal, onStatus, signal);
+  return handleAgentSummarize(params, llmConfig, sessionId, goal, onStatus, onChunk, signal);
 }
 
 /**
@@ -163,6 +164,7 @@ async function handleSimpleSummarize(
   sessionId: string,
   goal: string,
   onStatus: StatusCallback,
+  onChunk?: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<GoalHandlerResult> {
   onStatus({
@@ -197,6 +199,7 @@ ${safeContent}`,
     llmConfig,
     (chunk) => {
       response += chunk;
+      if (onChunk) onChunk(chunk);
     },
     signal
   );
@@ -260,6 +263,7 @@ async function handleAgentSummarize(
   sessionId: string,
   goal: string,
   onStatus: StatusCallback,
+  onChunk?: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<GoalHandlerResult> {
   const config = createAgentConfig(llmConfig, {
@@ -280,7 +284,15 @@ async function handleAgentSummarize(
 
   const memory = createEpisodicMemory(sessionId);
 
-  const result = await runAgentLoop(goal, contextWithContent, memory, config, onStatus, signal);
+  const result = await runAgentLoop(
+    goal,
+    contextWithContent,
+    memory,
+    config,
+    onStatus,
+    onChunk,
+    signal
+  );
 
   return {
     ...result,
@@ -312,6 +324,7 @@ export async function handleExplainGoal(
   params: ExplainGoalParams,
   llmConfig: LLMConfig,
   onStatus: StatusCallback,
+  onChunk?: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<GoalHandlerResult> {
   const sessionId = `explain_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -321,11 +334,11 @@ export async function handleExplainGoal(
 
   // For search-enhanced explanations, use Agentic RAG
   if (params.useSearch && params.searchConfig) {
-    return handleAgentExplainWithRAG(params, llmConfig, sessionId, goal, onStatus, signal);
+    return handleAgentExplainWithRAG(params, llmConfig, sessionId, goal, onStatus, onChunk, signal);
   }
 
   // For simple explanations, use direct LLM call
-  return handleSimpleExplain(params, llmConfig, sessionId, goal, onStatus, signal);
+  return handleSimpleExplain(params, llmConfig, sessionId, goal, onStatus, onChunk, signal);
 }
 
 /**
@@ -337,6 +350,7 @@ async function handleSimpleExplain(
   sessionId: string,
   goal: string,
   onStatus: StatusCallback,
+  onChunk?: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<GoalHandlerResult> {
   onStatus({
@@ -366,6 +380,7 @@ ${params.context}`,
     llmConfig,
     (chunk) => {
       response += chunk;
+      if (onChunk) onChunk(chunk);
     },
     signal
   );
@@ -430,6 +445,7 @@ async function handleAgentExplainWithRAG(
   sessionId: string,
   goal: string,
   onStatus: StatusCallback,
+  onChunk?: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<GoalHandlerResult> {
   const steps: AgentStep[] = [];
@@ -553,6 +569,7 @@ ${ragResult.disclaimer ? `\nNote: ${ragResult.disclaimer}` : ''}`,
     llmConfig,
     (chunk) => {
       response += chunk;
+      if (onChunk) onChunk(chunk);
     },
     signal
   );
@@ -625,6 +642,7 @@ export async function handleScreenshotGoal(
   params: ScreenshotGoalParams,
   llmConfig: LLMConfig,
   onStatus: StatusCallback,
+  onChunk?: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<GoalHandlerResult> {
   const sessionId = `screenshot_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -636,11 +654,11 @@ export async function handleScreenshotGoal(
 
   if (!useAgent) {
     // Simple image - use direct vision LLM call
-    return handleSimpleScreenshot(params, llmConfig, sessionId, goal, onStatus, signal);
+    return handleSimpleScreenshot(params, llmConfig, sessionId, goal, onStatus, onChunk, signal);
   }
 
   // Complex image - use full agent loop
-  return handleAgentScreenshot(params, llmConfig, sessionId, goal, onStatus, signal);
+  return handleAgentScreenshot(params, llmConfig, sessionId, goal, onStatus, onChunk, signal);
 }
 
 /**
@@ -652,6 +670,7 @@ async function handleSimpleScreenshot(
   sessionId: string,
   goal: string,
   onStatus: StatusCallback,
+  onChunk?: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<GoalHandlerResult> {
   onStatus({
@@ -673,6 +692,7 @@ async function handleSimpleScreenshot(
     llmConfig,
     (chunk) => {
       response += chunk;
+      if (onChunk) onChunk(chunk);
     },
     signal
   );
@@ -735,6 +755,7 @@ async function handleAgentScreenshot(
   sessionId: string,
   goal: string,
   onStatus: StatusCallback,
+  onChunk?: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<GoalHandlerResult> {
   const config = createAgentConfig(llmConfig, {
@@ -756,7 +777,15 @@ async function handleAgentScreenshot(
   const memory = createEpisodicMemory(sessionId);
 
   // For complex images, we still use the agent loop but the tool will handle the vision call
-  const result = await runAgentLoop(goal, contextWithImage, memory, config, onStatus, signal);
+  const result = await runAgentLoop(
+    goal,
+    contextWithImage,
+    memory,
+    config,
+    onStatus,
+    onChunk,
+    signal
+  );
 
   return {
     ...result,
@@ -786,6 +815,7 @@ export async function handleNoteCardGoal(
   params: NoteCardGoalParams,
   llmConfig: LLMConfig,
   onStatus: StatusCallback,
+  onChunk?: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<GoalHandlerResult> {
   const sessionId = `notecard_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -835,6 +865,7 @@ Respond with ONLY the summary text (1-2 sentences). No labels, no formatting, ju
       llmConfig,
       (chunk) => {
         aiSummary += chunk;
+        if (onChunk) onChunk(chunk);
       },
       signal
     );
@@ -891,6 +922,7 @@ Respond with ONLY the summary text (1-2 sentences). No labels, no formatting.`;
         llmConfig,
         (chunk) => {
           aiSummary += chunk;
+          if (onChunk) onChunk(chunk);
         },
         signal
       );
@@ -960,6 +992,7 @@ export type GoalHandler<T> = (
   params: T,
   llmConfig: LLMConfig,
   onStatus: StatusCallback,
+  onChunk?: (chunk: string) => void,
   signal?: AbortSignal
 ) => Promise<GoalHandlerResult>;
 

@@ -14,13 +14,22 @@ console.log('KnowledgeLens content script loaded');
 
 // Container IDs
 const BUBBLE_CONTAINER_ID = 'knowledgelens-bubble';
-const PANEL_CONTAINER_ID = 'knowledgelens-panel';
+const PANEL_CONTAINER_PREFIX = 'knowledgelens-panel-';
 const SCREENSHOT_OVERLAY_ID = 'knowledgelens-screenshot-overlay';
 const PROCESSING_PANEL_ID = 'knowledgelens-processing-panel';
 
 // Current state
 let currentSelection: SelectionData | null = null;
-let sidebarMode: 'explain' | 'search' | null = null;
+
+// Track active panels by their unique IDs
+const activePanels = new Map<string, { text: string; mode: 'explain' | 'search' }>();
+
+/**
+ * Generate a unique panel ID.
+ */
+function generatePanelId(): string {
+  return `${PANEL_CONTAINER_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 /**
  * Show the floating bubble near the selection.
@@ -45,30 +54,45 @@ function hideBubble(): void {
 
 /**
  * Show the floating panel with AI response.
+ * Creates a new panel with a unique ID, allowing multiple panels to coexist.
  */
-function showPanel(mode: 'explain' | 'search'): void {
+function showPanel(mode: 'explain' | 'search'): string | undefined {
   if (!currentSelection) return;
 
-  sidebarMode = mode;
   hideBubble();
 
-  const container = getShadowContainer(PANEL_CONTAINER_ID);
+  const panelId = generatePanelId();
+  activePanels.set(panelId, { text: currentSelection.text, mode });
+
+  const container = getShadowContainer(panelId);
   container.render(
     <FloatingPanel
       selectedText={currentSelection.text}
       context={currentSelection.context}
       mode={mode}
-      onClose={hidePanel}
+      onClose={() => hidePanelById(panelId)}
     />
   );
+
+  return panelId;
 }
 
 /**
- * Hide the floating panel.
+ * Hide a specific floating panel by its ID.
  */
-function hidePanel(): void {
-  destroyShadowContainer(PANEL_CONTAINER_ID);
-  sidebarMode = null;
+function hidePanelById(panelId: string): void {
+  destroyShadowContainer(panelId);
+  activePanels.delete(panelId);
+}
+
+/**
+ * Hide all floating panels.
+ */
+function hideAllPanels(): void {
+  activePanels.forEach((_, panelId) => {
+    destroyShadowContainer(panelId);
+  });
+  activePanels.clear();
 }
 
 /**
@@ -87,11 +111,9 @@ function handleSearch(): void {
 
 /**
  * Handle selection change.
+ * Allows new selections even when panels are open.
  */
 function handleSelectionChange(selection: SelectionData | null): void {
-  // Don't hide sidebar if it's open
-  if (sidebarMode) return;
-
   if (selection) {
     currentSelection = selection;
     showBubble(selection);
@@ -107,7 +129,7 @@ function handleSelectionChange(selection: SelectionData | null): void {
  */
 function showScreenshotOverlay(): void {
   hideBubble();
-  hidePanel();
+  hideAllPanels();
 
   const container = getShadowContainer(SCREENSHOT_OVERLAY_ID);
   container.render(
@@ -188,8 +210,8 @@ function hideProcessingPanel(): void {
 }
 
 /**
- * Handle click outside to close bubble (but not panel).
- * Panel should only be closed via the close button to prevent accidental loss of results.
+ * Handle click outside to close bubble (but not panels).
+ * Panels should only be closed via the close button to prevent accidental loss of results.
  */
 function handleDocumentClick(event: MouseEvent): void {
   const target = event.target as HTMLElement;
@@ -199,22 +221,24 @@ function handleDocumentClick(event: MouseEvent): void {
 
   // Check if click is inside shadow DOM containers
   const bubbleHost = document.getElementById(BUBBLE_CONTAINER_ID);
-  const panelHost = document.getElementById(PANEL_CONTAINER_ID);
   const processingHost = document.getElementById(PROCESSING_PANEL_ID);
 
-  if (
-    bubbleHost?.contains(target) ||
-    panelHost?.contains(target) ||
-    processingHost?.contains(target)
-  ) {
+  // Check if click is inside any active panel
+  let clickedInsidePanel = false;
+  activePanels.forEach((_, panelId) => {
+    const panelHost = document.getElementById(panelId);
+    if (panelHost?.contains(target)) {
+      clickedInsidePanel = true;
+    }
+  });
+
+  if (bubbleHost?.contains(target) || clickedInsidePanel || processingHost?.contains(target)) {
     return;
   }
 
-  // Only hide bubble when clicking outside, keep panel open
-  // Panel should be closed explicitly via close button to prevent losing results
-  if (!sidebarMode) {
-    hideBubble();
-  }
+  // Only hide bubble when clicking outside, keep panels open
+  // Panels should be closed explicitly via close button to prevent losing results
+  hideBubble();
 }
 
 /**
@@ -254,7 +278,7 @@ function cleanup(): void {
   document.removeEventListener('click', handleDocumentClick);
   chrome.runtime.onMessage.removeListener(handleExtensionMessage);
   hideBubble();
-  hidePanel();
+  hideAllPanels();
   hideScreenshotOverlay();
   hideProcessingPanel();
 }

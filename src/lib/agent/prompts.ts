@@ -699,6 +699,191 @@ Remove:
 };
 
 // ============================================================================
+// Summary Templates
+// Requirements: Progressive Hierarchical Summary
+// ============================================================================
+
+/**
+ * Quick Snapshot Template (Flash Summary)
+ * For short content (< 300 tokens).
+ */
+export const SUMMARY_SNAPSHOT: PromptTemplate = {
+  name: 'SUMMARY_SNAPSHOT',
+  sections: [
+    {
+      name: 'system',
+      delimiter: 'xml',
+      content: `You are an expert content distiller.
+Your task is to provide a "Quick Snapshot" of the provided text.
+1. Read the short text.
+2. Provide a SINGLE, punchy sentence that captures the absolute core essence.
+3. If there is a key action item or conclusion, include it.
+4. Do NOT use bullet points. Just one powerful sentence.`,
+      required: true,
+    },
+    {
+      name: 'content',
+      delimiter: 'xml',
+      content: `Content to snapshot:
+{{content}}`,
+      required: true,
+    },
+    {
+      name: 'metadata',
+      delimiter: 'xml',
+      content: `Page Title: {{title}}
+Description: {{description}}`,
+      required: false,
+    },
+  ],
+  placeholders: [
+    { name: 'content', type: 'string', required: true },
+    { name: 'title', type: 'string', required: false },
+    { name: 'description', type: 'string', required: false },
+  ],
+};
+
+/**
+ * Content Inventory Template
+ * For messy, navigational, or low-density pages.
+ */
+export const SUMMARY_INVENTORY: PromptTemplate = {
+  name: 'SUMMARY_INVENTORY',
+  sections: [
+    {
+      name: 'system',
+      delimiter: 'xml',
+      content: `You are a "Content Librarian". The page provided is not an article but a collection of links, tools, or resources.
+DO NOT try to worry about a narrative summary. instead, create a "Content Inventory".
+
+Output Format:
+**Page Type:** [e.g. Navigation / Resource List / Profile / Tool / Error Page]
+
+**Primary Resources:**
+- [List 3-5 main entities/links found, e.g. "Documentation for X", "Download Link for Y"]
+- ...
+
+**Purpose:** 
+[One short sentence explaining what a user would do on this page]
+
+If the page seems completely useless (e.g. 404, blank), just say so.`,
+      required: true,
+    },
+    {
+      name: 'content',
+      delimiter: 'xml',
+      content: `Page Content:
+{{content}}`,
+      required: true,
+    },
+    {
+      name: 'metadata',
+      delimiter: 'xml',
+      content: `Page Title: {{title}}
+Description: {{description}}`,
+      required: false,
+    },
+  ],
+  placeholders: [
+    { name: 'content', type: 'string', required: true },
+    { name: 'title', type: 'string', required: false },
+    { name: 'description', type: 'string', required: false },
+  ],
+};
+
+/**
+ * Hierarchical Summary Template (Level 1 & 2)
+ * For standard articles/content.
+ */
+export const SUMMARY_HIERARCHICAL: PromptTemplate = {
+  name: 'SUMMARY_HIERARCHICAL',
+  sections: [
+    {
+      name: 'system',
+      delimiter: 'xml',
+      content: `You are a high-level executive assistant. Create a "Progressive Hierarchical Summary" for the provided content.
+
+Your output MUST follow this specific markdown structure:
+
+# Level 1: TL;DR
+> [A single, bold statement summarizing the main conclusion or value proposition.]
+
+# Level 2: Executive Brief
+**Key Takeaways:**
+- **[Point 1 Keyword]:** [Explanation]
+- **[Point 2 Keyword]:** [Explanation]
+- **[Point 3 Keyword]:** [Explanation]
+
+(Limit to 3-5 key points. Focus on data, conclusions, and unique insights. Ignore generic fluff.)`,
+      required: true,
+    },
+    {
+      name: 'content',
+      delimiter: 'xml',
+      content: `Content to summarize:
+{{content}}`,
+      required: true,
+    },
+    {
+      name: 'metadata',
+      delimiter: 'xml',
+      content: `Page Title: {{title}}
+Description: {{description}}`,
+      required: false,
+    },
+  ],
+  placeholders: [
+    { name: 'content', type: 'string', required: true },
+    { name: 'title', type: 'string', required: false },
+    { name: 'description', type: 'string', required: false },
+  ],
+};
+
+/**
+ * Level 3: Deep Dive Template
+ * For detailed, on-demand analysis.
+ */
+export const HIERARCHICAL_SUMMARY_PROMPT_L3: PromptTemplate = {
+  name: 'HIERARCHICAL_SUMMARY_PROMPT_L3',
+  sections: [
+    {
+      name: 'system',
+      delimiter: 'xml',
+      content: `You are a Deep Dive Specialist.
+Your task is to provide a comprehensive, detailed analysis of the provided content.
+This is "Level 3" of a progressive summary system. The user has already seen the High-level TL;DR and Executive Brief.
+NOW they want the DETAILS.
+
+Goal: Provide 3-5 comprehensive sections that cover the most important aspects of the content in depth.
+- Use Header 3 (###) for section titles.
+- Use detailed paragraphs, bullet points, and data tables where appropriate.
+- Focus on "How", "Why", and "Evidence".
+- Do NOT repeat the high-level summary. Go deeper.`,
+      required: true,
+    },
+    {
+      name: 'content',
+      delimiter: 'xml',
+      content: `Content to analyze:
+{{content}}`,
+      required: true,
+    },
+    {
+      name: 'metadata',
+      delimiter: 'xml',
+      content: `Page Title: {{title}}
+Description: {{description}}`,
+      required: false,
+    },
+  ],
+  placeholders: [
+    { name: 'content', type: 'string', required: true },
+    { name: 'title', type: 'string', required: false },
+    { name: 'description', type: 'string', required: false },
+  ],
+};
+
+// ============================================================================
 // Template Collection Export
 // ============================================================================
 
@@ -708,6 +893,10 @@ export const TEMPLATES = {
   RESULT_GRADING,
   QUERY_REWRITE,
   CONTEXT_COMPACTION,
+  SUMMARY_SNAPSHOT,
+  SUMMARY_INVENTORY,
+  SUMMARY_HIERARCHICAL,
+  HIERARCHICAL_SUMMARY_PROMPT_L3,
 } as const;
 
 // Register all pre-defined templates on module load

@@ -26,6 +26,7 @@ const PHASE_CONFIG: Record<AgentPhase | 'idle', { label: string; bg: string; col
   analyzing: { label: 'SCANNING', bg: '#F3E8FF', color: '#6B21A8' },
   reflecting: { label: 'REFLECTING', bg: '#FCE7F3', color: '#9D174D' },
   synthesizing: { label: 'WRITING', bg: '#D1FAE5', color: '#065F46' },
+  done: { label: 'DONE', bg: '#D1FAE5', color: '#065F46' },
 };
 
 export function AgentStatusDisplay({

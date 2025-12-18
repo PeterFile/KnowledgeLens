@@ -51,14 +51,22 @@ export type ExtensionMessage =
   | { action: 'extract_screenshot'; payload: ExtractScreenshotPayload }
   | { action: 'generate_note_card'; payload: NoteCardPayload }
   | { action: 'cancel_request'; payload: CancelRequestPayload }
+  | { action: 'trigger_summary_panel'; payload: { content: string; pageUrl: string } }
   | { action: 'agent_execute'; payload: AgentExecutePayload }
   | { action: 'agent_cancel'; payload: AgentCancelPayload }
-  | { action: 'agent_get_status'; payload: AgentGetStatusPayload };
+  | { action: 'agent_get_status'; payload: AgentGetStatusPayload }
+  | { action: 'agent_deep_dive'; payload: DeepDivePayload };
 
 export interface SummarizePayload {
   content: string;
   pageUrl: string;
   requestId?: string;
+}
+
+export interface DeepDivePayload {
+  content: string;
+  pageUrl: string;
+  requestId: string;
 }
 
 export interface ExplainPayload {
@@ -142,7 +150,7 @@ export interface StreamingMessage {
 export interface AgentStatusMessage {
   type: 'agent_status_update' | 'agent_complete' | 'agent_error';
   sessionId: string;
-  phase?: 'thinking' | 'executing' | 'analyzing' | 'reflecting' | 'synthesizing' | 'idle';
+  phase?: 'thinking' | 'executing' | 'analyzing' | 'reflecting' | 'synthesizing' | 'done' | 'idle';
   stepNumber?: number;
   maxSteps?: number;
   tokenUsage?: { input: number; output: number };

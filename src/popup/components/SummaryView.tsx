@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import type { StoredSettings, StreamingMessage, AgentStatusMessage } from '../../types';
+import type { StoredSettings, AgentStatusMessage } from '../../types';
 import type { AgentPhase } from '../../lib/agent/types';
 import { SkeletonLoader } from './SkeletonLoader';
 import { TimeoutWarning } from './TimeoutWarning';
@@ -8,7 +8,14 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 import { AgentStatusDisplay } from '../../components';
 
 export interface SummaryState {
-  status: 'idle' | 'loading' | 'streaming' | 'success' | 'error' | 'agent_running';
+  status:
+    | 'idle'
+    | 'loading'
+    | 'streaming'
+    | 'success'
+    | 'error'
+    | 'agent_running'
+    | 'running_on_page';
   content: string;
   error?: string;
   requestId?: string;
@@ -114,45 +121,15 @@ export function SummaryView({
       const response = await chrome.tabs.sendMessage(tab.id, { action: 'get_page_content' });
       if (!response?.content) throw new Error('Failed to extract page content');
 
-      const listener = (message: StreamingMessage) => {
-        if (message.requestId !== requestId) return;
-
-        switch (message.type) {
-          case 'streaming_start':
-            setState((prev) => ({ ...prev, status: 'streaming', content: '' }));
-            break;
-          case 'streaming_chunk':
-            setState((prev) => ({
-              ...prev,
-              content: prev.content + (message.chunk ?? ''),
-            }));
-            break;
-          case 'streaming_end':
-            clearTimeout(timeoutId);
-            setTimeoutWarning(false);
-            setState((prev) => ({ ...prev, status: 'success' }));
-            chrome.runtime.onMessage.removeListener(listener);
-            break;
-          case 'streaming_error':
-            clearTimeout(timeoutId);
-            setTimeoutWarning(false);
-            setState({
-              status: 'error',
-              content: '',
-              error: message.error ?? 'Unknown error occurred',
-            });
-            chrome.runtime.onMessage.removeListener(listener);
-            break;
-        }
-      };
-
-      chrome.runtime.onMessage.addListener(listener);
-
-      chrome.runtime.sendMessage({
-        action: 'summarize_page',
-        payload: { content: response.content, pageUrl: tab.url ?? '', requestId },
-        requestId,
+      // Send message to content script to trigger the panel
+      await chrome.tabs.sendMessage(tab.id, {
+        action: 'trigger_summary_panel',
+        payload: { content: response.content, pageUrl: tab.url || '' },
       });
+
+      setState({ status: 'running_on_page', content: '' });
+      clearTimeout(timeoutId);
+      setTimeoutWarning(false);
     } catch (error) {
       clearTimeout(timeoutId);
       setTimeoutWarning(false);
@@ -275,6 +252,26 @@ export function SummaryView({
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {state.status === 'running_on_page' && (
+        <div className="flex flex-col items-center justify-center h-full gap-6 text-center">
+          <div className="w-16 h-16 bg-white border border-black flex items-center justify-center shadow-[4px_4px_0_0_#F59E0B]">
+            <span className="text-2xl animate-pulse">✨</span>
+          </div>
+          <div>
+            <h3 className="text-xl font-bold mb-2">Summary Active</h3>
+            <p className="text-xs text-gray-500 max-w-[200px] mx-auto leading-relaxed uppercase tracking-wide">
+              The summary is being generated in a floating panel on the page.
+            </p>
+          </div>
+          <button
+            onClick={() => setState({ status: 'idle', content: '' })}
+            className="btn-brutal w-full py-3"
+          >
+            DISMISS
+          </button>
         </div>
       )}
 

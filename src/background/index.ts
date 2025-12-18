@@ -17,6 +17,7 @@ import type {
   AgentExecutePayload,
   AgentCancelPayload,
   AgentGetStatusPayload,
+  DeepDivePayload,
   StoredSettings,
 } from '../types';
 import { loadSettings } from '../lib/storage';
@@ -37,6 +38,7 @@ import {
   handleExplainGoal,
   handleScreenshotGoal,
   handleNoteCardGoal,
+  handleDeepDiveGoal,
 } from '../lib/agent';
 import type { AgentState, AgentStatus } from '../lib/agent';
 
@@ -255,6 +257,91 @@ async function handleSummarize(
     );
   } finally {
     requestManager.complete(request.id);
+  }
+}
+
+/**
+ * Handle Deep Dive Request
+ */
+async function handleDeepDive(
+  payload: DeepDivePayload,
+  sendResponse: (response: ExtensionResponse) => void,
+  tabId?: number
+): Promise<void> {
+  const settings = await getSettings();
+  if (!settings?.llmConfig?.apiKey) {
+    sendResponse({
+      success: false,
+      error: 'LLM API key not configured',
+      requestId: payload.requestId,
+    });
+    return;
+  }
+
+  const deepDiveRequestId = `${payload.requestId}_deep_dive`;
+  const request = requestManager.create(deepDiveRequestId);
+
+  sendResponse({
+    success: true,
+    data: { requestId: deepDiveRequestId, status: 'started' },
+    requestId: deepDiveRequestId,
+  });
+
+  sendStreamingMessage(
+    {
+      type: 'streaming_start',
+      requestId: deepDiveRequestId,
+    },
+    tabId
+  );
+
+  try {
+    const result = await handleDeepDiveGoal(
+      {
+        content: payload.content,
+        pageUrl: payload.pageUrl,
+      },
+      settings.llmConfig,
+      (status) => {
+        // Optional: send status updates
+        void status;
+      },
+      (chunk) => {
+        sendStreamingMessage(
+          {
+            type: 'streaming_chunk',
+            requestId: deepDiveRequestId,
+            chunk,
+          },
+          tabId
+        );
+      },
+      request.controller.signal
+    );
+
+    sendStreamingMessage(
+      {
+        type: 'streaming_end',
+        requestId: deepDiveRequestId,
+        content: result.response,
+      },
+      tabId
+    );
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      return;
+    }
+
+    sendStreamingMessage(
+      {
+        type: 'streaming_error',
+        requestId: deepDiveRequestId,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      },
+      tabId
+    );
+  } finally {
+    requestManager.complete(deepDiveRequestId);
   }
 }
 
@@ -1223,6 +1310,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
     case 'summarize_page':
       handleSummarize(message.payload, sendResponse, tabId);
       return true; // Keep channel open for async response
+
+    case 'agent_deep_dive':
+      handleDeepDive(message.payload, sendResponse, tabId);
+      return true;
 
     case 'explain_text':
       handleExplain(message.payload, sendResponse, tabId);

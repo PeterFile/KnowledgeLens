@@ -408,6 +408,65 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
     }
   };
 
+  // Helper to render content based on phase/mode
+  const renderContent = () => {
+    if (
+      status === 'loading' ||
+      status === 'streaming' ||
+      status === 'done' ||
+      status === 'agent_running'
+    ) {
+      // If we have hierarchical content for summary
+      if (mode === 'summary' && content.includes('# Level 1: TL;DR')) {
+        return (
+          <HierarchicalSummaryView
+            content={content}
+            originalContent={context || ''}
+            pageUrl={window.location.href}
+          />
+        );
+      }
+      return (
+        <div className="kl-markdown">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              code({ node: _node, className, children, ...props }) {
+                const match = /language-(\w+)/.exec(className || '');
+                return match ? (
+                  <div style={{ position: 'relative' }}>
+                    <code className={className} {...props}>
+                      {children}
+                    </code>
+                  </div>
+                ) : (
+                  <code className={className} {...props}>
+                    {children}
+                  </code>
+                );
+              },
+            }}
+          >
+            {content}
+          </ReactMarkdown>
+          {status === 'streaming' && (
+            <span
+              style={{
+                display: 'inline-block',
+                width: '8px',
+                height: '16px',
+                background: '#4F46E5',
+                marginLeft: '4px',
+                animation: 'blink 1s step-end infinite',
+              }}
+            />
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
+
   const title =
     mode === 'summary' ? 'PAGE SUMMARY' : mode === 'search' ? 'WEB SEARCH' : 'CONTEXT EXPLAIN';
   const headerBg = mode === 'summary' ? '#F59E0B' : '#4F46E5'; // Amber for summary, Indigo for others
@@ -501,10 +560,10 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
           </button>
         </div>
       </div>
-
+      {/* The rest of the panel content */}
       {!collapsed && (
         <>
-          {/* Input Summary - REFINED BRUTALIST STYLE */}
+          {/* Input Summary */}
           <div
             style={{
               padding: '8px 14px',
@@ -566,9 +625,13 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
                 />
                 {content && (
                   <div className="kl-markdown" style={{ opacity: 0.7 }}>
-                    {/* Custom Rendering for Hierarchical Summary */}
+                    {/* Agent Running Preview */}
                     {mode === 'summary' && content.includes('# Level 1: TL;DR') ? (
-                      <HierarchicalSummaryView content={content} />
+                      <HierarchicalSummaryView
+                        content={content}
+                        originalContent={context || ''}
+                        pageUrl={window.location.href}
+                      />
                     ) : (
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
                     )}
@@ -577,28 +640,7 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
               </>
             )}
 
-            {(status === 'streaming' || status === 'done') && (
-              <div className="kl-markdown">
-                {/* Custom Rendering for Hierarchical Summary */}
-                {mode === 'summary' && content.includes('# Level 1: TL;DR') ? (
-                  <HierarchicalSummaryView content={content} />
-                ) : (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-                )}
-                {status === 'streaming' && (
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      width: '8px',
-                      height: '16px',
-                      background: '#4F46E5',
-                      marginLeft: '4px',
-                      animation: 'blink 1s step-end infinite',
-                    }}
-                  />
-                )}
-              </div>
-            )}
+            {!(status === 'agent_running' || status === 'loading') && renderContent()}
 
             {status === 'error' && (
               <div
@@ -632,9 +674,10 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
             <button
               onClick={handleCopy}
               disabled={!content}
+              className="kl-btn kl-btn-secondary"
               style={{
                 padding: '6px 16px',
-                background: copied ? '#10B981' : '#fff', // Acid Green on success
+                background: copied ? '#10B981' : '#fff',
                 border: '1px solid #000',
                 color: '#000',
                 fontSize: '12px',
@@ -758,8 +801,22 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
 }
 
 // Hierarchical Summary Component
-function HierarchicalSummaryView({ content }: { content: string }) {
+// Hierarchical Summary Component
+function HierarchicalSummaryView({
+  content,
+  originalContent,
+  pageUrl,
+}: {
+  content: string;
+  originalContent: string;
+  pageUrl: string;
+}) {
   const [showDeepDive, setShowDeepDive] = useState(false);
+  const [ddStatus, setDdStatus] = useState<'idle' | 'loading' | 'streaming' | 'done' | 'error'>(
+    'idle'
+  );
+  const [ddContent, setDdContent] = useState('');
+  const [ddError, setDdError] = useState<string | null>(null);
 
   // Parse content manually since we want specific control
   const tldrMatch = content.match(/# Level 1: TL;DR\s*\n> (.*)/);
@@ -767,6 +824,63 @@ function HierarchicalSummaryView({ content }: { content: string }) {
 
   const execSummaryStart = content.indexOf('# Level 2: Executive Brief');
   const execSummary = execSummaryStart !== -1 ? content.slice(execSummaryStart + 26).trim() : '';
+
+  const handleDeepDive = useCallback(() => {
+    if (showDeepDive) {
+      setShowDeepDive(false);
+      return;
+    }
+
+    setShowDeepDive(true);
+
+    // If already loaded or loading, don't re-trigger
+    if (ddStatus !== 'idle' && ddStatus !== 'error') return;
+
+    setDdStatus('loading');
+    setDdError(null);
+    const requestId = `deep_dive_${Date.now()}`;
+
+    // Send Request
+    chrome.runtime.sendMessage({
+      action: 'agent_deep_dive',
+      payload: {
+        content: originalContent,
+        pageUrl: pageUrl,
+        requestId: requestId,
+      },
+    });
+
+    // Setup Listener
+    const listener = (message: any) => {
+      // We only care about streaming messages for THIS specific deep dive request
+      // The background script appends "_deep_dive" to the ID we sent if we sent a base ID,
+      // OR we can just check if the message requestId *contains* our unique key.
+      // Actually, looking at background script:
+      // const deepDiveRequestId = `${payload.requestId}_deep_dive`;
+      // So we should listen for the suffixed ID.
+
+      const expectedId = `${requestId}_deep_dive`;
+
+      if (message.requestId !== expectedId) return;
+
+      if (message.type === 'streaming_chunk') {
+        setDdStatus('streaming');
+        setDdContent((prev) => prev + (message.chunk || ''));
+      }
+      if (message.type === 'streaming_end') {
+        setDdStatus('done');
+        if (message.content) setDdContent(message.content); // Final sync
+        chrome.runtime.onMessage.removeListener(listener);
+      }
+      if (message.type === 'streaming_error') {
+        setDdStatus('error');
+        setDdError(message.error);
+        chrome.runtime.onMessage.removeListener(listener);
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(listener);
+  }, [ddStatus, originalContent, pageUrl, showDeepDive]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -827,7 +941,7 @@ function HierarchicalSummaryView({ content }: { content: string }) {
       {/* Level 3: Deep Dive Action */}
       <div style={{ marginTop: '8px' }}>
         <button
-          onClick={() => setShowDeepDive(!showDeepDive)}
+          onClick={handleDeepDive}
           style={{
             width: '100%',
             padding: '8px',
@@ -851,22 +965,34 @@ function HierarchicalSummaryView({ content }: { content: string }) {
               padding: '12px',
               background: '#F9FAFB',
               borderRadius: '4px',
+              border: '1px solid #E5E7EB',
             }}
           >
-            <div
+            <h3
               style={{
-                fontSize: '11px',
-                color: '#6B7280',
+                fontSize: '13px',
+                textTransform: 'uppercase',
+                fontWeight: '700',
                 marginBottom: '8px',
-                fontStyle: 'italic',
+                color: '#4B5563',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
               }}
             >
-              Agent is analyzing deeper context... (Simulation)
-            </div>
-            <p>
-              [Detailed Section Breakdown Would Appear Here - Connecting to RAG/Agent Loop in next
-              iteration]
-            </p>
+              Deep Dive Analysis
+              {ddStatus === 'loading' && (
+                <span style={{ fontSize: '12px', fontWeight: '400' }}>(Thinking...)</span>
+              )}
+            </h3>
+
+            {ddStatus === 'error' ? (
+              <div style={{ color: '#DC2626', fontSize: '13px' }}>Error: {ddError}</div>
+            ) : (
+              <div className="kl-markdown">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{ddContent}</ReactMarkdown>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -327,6 +327,110 @@ async function handleAgentSummarize(
   return handleSummarizeGoal(params, llmConfig, onStatus, onChunk, signal);
 }
 
+/**
+ * Handle Deep Dive (Level 3) Goal.
+ */
+export async function handleDeepDiveGoal(
+  params: SummarizeGoalParams,
+  llmConfig: LLMConfig,
+  onStatus: StatusCallback,
+  onChunk?: (chunk: string) => void,
+  signal?: AbortSignal
+): Promise<GoalHandlerResult> {
+  const sessionId = `deep_dive_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const goal = `Deep Dive into content from ${params.pageUrl}`;
+
+  onStatus({
+    phase: 'analyzing',
+    stepNumber: 1,
+    maxSteps: 3,
+    tokenUsage: { input: 0, output: 0 },
+  });
+
+  const template = loadTemplate('HIERARCHICAL_SUMMARY_PROMPT_L3');
+
+  const context = {
+    content: params.content,
+    title: params.pageTitle || '',
+    description: '',
+  };
+
+  const messages: ChatMessage[] = [];
+
+  const systemSection = template.sections.find((s) => s.name === 'system');
+  if (systemSection) {
+    messages.push({ role: 'system', content: injectPlaceholders(systemSection.content, context) });
+  }
+
+  const contentSection = template.sections.find((s) => s.name === 'content');
+  if (contentSection) {
+    messages.push({ role: 'user', content: injectPlaceholders(contentSection.content, context) });
+  }
+
+  // Stream Response
+  let response = '';
+  onStatus({ phase: 'thinking', stepNumber: 2, maxSteps: 3, tokenUsage: { input: 0, output: 0 } });
+
+  const llmResponse = await callLLMWithMessages(
+    messages,
+    llmConfig,
+    (chunk) => {
+      response += chunk;
+      if (onChunk) onChunk(chunk);
+    },
+    signal
+  );
+
+  const inputTokens = llmResponse.usage?.promptTokens ?? countTokens(JSON.stringify(messages));
+  const outputTokens = llmResponse.usage?.completionTokens ?? countTokens(response);
+
+  onStatus({
+    phase: 'done',
+    stepNumber: 3,
+    maxSteps: 3,
+    tokenUsage: { input: inputTokens, output: outputTokens },
+  });
+
+  // Create trajectory
+  const trajectory: AgentTrajectory = {
+    requestId: sessionId,
+    goal,
+    steps: [
+      {
+        stepNumber: 1,
+        timestamp: Date.now(),
+        type: 'synthesis',
+        content: response,
+        tokenCount: outputTokens,
+      },
+    ],
+    status: 'completed',
+    totalTokens: { input: inputTokens, output: outputTokens },
+    efficiency: 1,
+  };
+
+  const agentContext = createContext(goal, 128000);
+  const memory = createEpisodicMemory(sessionId);
+
+  return {
+    trajectory,
+    context: agentContext,
+    memory,
+    log: {
+      requestId: sessionId,
+      entries: [],
+      metrics: {
+        totalSteps: 1,
+        totalTokens: { input: inputTokens, output: outputTokens },
+        duration: 0,
+        errorCount: 0,
+      },
+    },
+    response,
+    usedAgent: false,
+  };
+}
+
 // ============================================================================
 // Text Explanation Goal Handler
 // Requirements: 1.1, 4.1, 3.1

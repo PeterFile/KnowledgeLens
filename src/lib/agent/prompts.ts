@@ -839,6 +839,50 @@ Description: {{description}}`,
   ],
 };
 
+/**
+ * Level 3: Deep Dive Template
+ * For detailed, on-demand analysis.
+ */
+export const HIERARCHICAL_SUMMARY_PROMPT_L3: PromptTemplate = {
+  name: 'HIERARCHICAL_SUMMARY_PROMPT_L3',
+  sections: [
+    {
+      name: 'system',
+      delimiter: 'xml',
+      content: `You are a Deep Dive Specialist.
+Your task is to provide a comprehensive, detailed analysis of the provided content.
+This is "Level 3" of a progressive summary system. The user has already seen the High-level TL;DR and Executive Brief.
+NOW they want the DETAILS.
+
+Goal: Provide 3-5 comprehensive sections that cover the most important aspects of the content in depth.
+- Use Header 3 (###) for section titles.
+- Use detailed paragraphs, bullet points, and data tables where appropriate.
+- Focus on "How", "Why", and "Evidence".
+- Do NOT repeat the high-level summary. Go deeper.`,
+      required: true,
+    },
+    {
+      name: 'content',
+      delimiter: 'xml',
+      content: `Content to analyze:
+{{content}}`,
+      required: true,
+    },
+    {
+      name: 'metadata',
+      delimiter: 'xml',
+      content: `Page Title: {{title}}
+Description: {{description}}`,
+      required: false,
+    },
+  ],
+  placeholders: [
+    { name: 'content', type: 'string', required: true },
+    { name: 'title', type: 'string', required: false },
+    { name: 'description', type: 'string', required: false },
+  ],
+};
+
 // ============================================================================
 // Template Collection Export
 // ============================================================================
@@ -852,6 +896,7 @@ export const TEMPLATES = {
   SUMMARY_SNAPSHOT,
   SUMMARY_INVENTORY,
   SUMMARY_HIERARCHICAL,
+  HIERARCHICAL_SUMMARY_PROMPT_L3,
 } as const;
 
 // Register all pre-defined templates on module load

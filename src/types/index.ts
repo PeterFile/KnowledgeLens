@@ -53,12 +53,19 @@ export type ExtensionMessage =
   | { action: 'trigger_summary_panel'; payload: { content: string; pageUrl: string } }
   | { action: 'agent_execute'; payload: AgentExecutePayload }
   | { action: 'agent_cancel'; payload: AgentCancelPayload }
-  | { action: 'agent_get_status'; payload: AgentGetStatusPayload };
+  | { action: 'agent_get_status'; payload: AgentGetStatusPayload }
+  | { action: 'agent_deep_dive'; payload: DeepDivePayload };
 
 export interface SummarizePayload {
   content: string;
   pageUrl: string;
   requestId?: string;
+}
+
+export interface DeepDivePayload {
+  content: string;
+  pageUrl: string;
+  requestId: string;
 }
 
 export interface ExplainPayload {

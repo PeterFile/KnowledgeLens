@@ -34,10 +34,15 @@ const DEFAULT_MAX_TOKENS: Record<string, number> = {
   'claude-3-7-sonnet-latest': 200000,
 
   // --- Google Gemini Models (Generation 3.0 & 2.5) ---
+  'gemini-3-flash': 1000000,
   'gemini-3.0-pro': 2000000,
   'gemini-2.5-pro': 2000000,
   'gemini-2.5-flash': 1000000,
   'gemini-2.5-flash-lite': 1000000,
+
+  // --- DeepSeek Models ---
+  'deepseek-chat': 64000,
+  'deepseek-reasoner': 64000,
 };
 
 /**
@@ -670,7 +675,7 @@ function getFastModel(provider: 'openai' | 'anthropic' | 'gemini'): string {
     case 'anthropic':
       return 'claude-haiku-4-5-20251001';
     case 'gemini':
-      return 'gemini-2.5-flash-lite';
+      return 'gemini-3-flash';
   }
 }
 

@@ -15,7 +15,13 @@ const MODEL_OPTIONS: Record<string, string[]> = {
     'claude-opus-4-5-20251101',
     'claude-3-7-sonnet-latest',
   ],
-  gemini: ['gemini-3.0-pro', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+  gemini: [
+    'gemini-3-flash',
+    'gemini-3.0-pro',
+    'gemini-2.5-pro',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+  ],
 };
 
 // Default agent settings

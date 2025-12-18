@@ -23,6 +23,7 @@ const MODEL_OPTIONS: Record<string, string[]> = {
     'gemini-2.5-flash-lite',
   ],
   deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+  glm: ['glm-4-plus', 'glm-4-0520', 'glm-4', 'glm-4-air', 'glm-4-flash'],
 };
 
 // Default agent settings
@@ -140,6 +141,7 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
                 <option value="anthropic">Anthropic</option>
                 <option value="gemini">Gemini</option>
                 <option value="deepseek">DeepSeek</option>
+                <option value="glm">GLM (Zhipu AI)</option>
               </select>
             </div>
             <div className="space-y-1">
@@ -167,10 +169,10 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
               className="input-brutal"
             />
           </div>
-          {(llmProvider === 'ollama' || llmProvider === 'deepseek') && (
+          {(llmProvider === 'ollama' || llmProvider === 'deepseek' || llmProvider === 'glm') && (
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-wider">
-                Base URL {llmProvider === 'deepseek' && '(Optional)'}
+                Base URL {(llmProvider === 'deepseek' || llmProvider === 'glm') && '(Optional)'}
               </label>
               <input
                 type="text"
@@ -179,7 +181,9 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
                 placeholder={
                   llmProvider === 'ollama'
                     ? 'http://localhost:11434/api/chat'
-                    : 'https://api.deepseek.com/v1/chat/completions'
+                    : llmProvider === 'deepseek'
+                      ? 'https://api.deepseek.com/v1/chat/completions'
+                      : 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
                 }
                 className="input-brutal"
               />

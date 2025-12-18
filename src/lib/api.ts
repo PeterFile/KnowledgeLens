@@ -14,6 +14,7 @@ const API_ENDPOINTS = {
   anthropic: 'https://api.anthropic.com/v1/messages',
   gemini: 'https://generativelanguage.googleapis.com/v1beta/models',
   deepseek: 'https://api.deepseek.com/v1/chat/completions',
+  glm: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
   serpapi: 'https://serpapi.com/search',
   google: 'https://www.googleapis.com/customsearch/v1',
 } as const;
@@ -44,6 +45,13 @@ const DEFAULT_MAX_TOKENS: Record<string, number> = {
   // --- DeepSeek Models ---
   'deepseek-chat': 64000,
   'deepseek-reasoner': 64000,
+
+  // --- GLM (Zhipu AI) Models ---
+  'glm-4-plus': 128000,
+  'glm-4-0520': 128000,
+  'glm-4': 128000,
+  'glm-4-air': 128000,
+  'glm-4-flash': 128000,
 };
 
 /**
@@ -99,6 +107,8 @@ export async function callLLMWithMessages(
       return callGeminiWithMessages(messages, config, onToken, signal);
     case 'deepseek':
       return callDeepSeekWithMessages(messages, config, onToken, signal);
+    case 'glm':
+      return callGLMWithMessages(messages, config, onToken, signal);
     default:
       throw new Error(`Unsupported provider: ${config.provider}`);
   }
@@ -263,6 +273,38 @@ async function callDeepSeekWithMessages(
   }
 
   return parseSSEStream(response, onToken, 'openai'); // DeepSeek is OpenAI compatible
+}
+
+/**
+ * GLM (Zhipu AI) streaming with structured messages (OpenAI compatible)
+ */
+async function callGLMWithMessages(
+  messages: ChatMessage[],
+  config: LLMConfig,
+  onToken: OnTokenCallback,
+  signal?: AbortSignal
+): Promise<LLMResponse> {
+  const url = config.baseUrl || API_ENDPOINTS.glm;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      stream: true,
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`GLM API error: ${response.status} - ${error}`);
+  }
+
+  return parseSSEStream(response, onToken, 'openai'); // GLM is OpenAI compatible
 }
 
 /**

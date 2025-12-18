@@ -13,6 +13,7 @@ const API_ENDPOINTS = {
   openai: 'https://api.openai.com/v1/chat/completions',
   anthropic: 'https://api.anthropic.com/v1/messages',
   gemini: 'https://generativelanguage.googleapis.com/v1beta/models',
+  deepseek: 'https://api.deepseek.com/v1/chat/completions',
   serpapi: 'https://serpapi.com/search',
   google: 'https://www.googleapis.com/customsearch/v1',
 } as const;
@@ -96,6 +97,8 @@ export async function callLLMWithMessages(
       return callAnthropicWithMessages(messages, config, onToken, signal);
     case 'gemini':
       return callGeminiWithMessages(messages, config, onToken, signal);
+    case 'deepseek':
+      return callDeepSeekWithMessages(messages, config, onToken, signal);
     default:
       throw new Error(`Unsupported provider: ${config.provider}`);
   }
@@ -228,6 +231,38 @@ async function callGeminiWithMessages(
   }
 
   return parseSSEStream(response, onToken, 'gemini');
+}
+
+/**
+ * DeepSeek streaming with structured messages (OpenAI compatible)
+ */
+async function callDeepSeekWithMessages(
+  messages: ChatMessage[],
+  config: LLMConfig,
+  onToken: OnTokenCallback,
+  signal?: AbortSignal
+): Promise<LLMResponse> {
+  const url = config.baseUrl || API_ENDPOINTS.deepseek;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      stream: true,
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`DeepSeek API error: ${response.status} - ${error}`);
+  }
+
+  return parseSSEStream(response, onToken, 'openai'); // DeepSeek is OpenAI compatible
 }
 
 /**
@@ -668,13 +703,17 @@ Examples:
 /**
  * Get a fast/cheap model for lightweight tasks like query generation
  */
-function getFastModel(provider: 'openai' | 'anthropic' | 'gemini'): string {
+function getFastModel(
+  provider: 'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'glm' | 'ollama'
+): string {
   switch (provider) {
     case 'openai':
       return 'gpt-5-nano';
     case 'anthropic':
       return 'claude-haiku-4-5-20251001';
     case 'gemini':
+      return 'gemini-3-flash';
+    default:
       return 'gemini-3-flash';
   }
 }

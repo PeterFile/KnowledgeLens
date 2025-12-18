@@ -22,6 +22,7 @@ const MODEL_OPTIONS: Record<string, string[]> = {
     'gemini-2.5-flash',
     'gemini-2.5-flash-lite',
   ],
+  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
 };
 
 // Default agent settings
@@ -31,10 +32,11 @@ const DEFAULT_MAX_RETRIES = 3;
 
 export function SettingsView({ settings, setSettings }: SettingsViewProps) {
   const [llmApiKey, setLlmApiKey] = useState(settings?.llmConfig?.apiKey ?? '');
-  const [llmProvider, setLlmProvider] = useState<'openai' | 'anthropic' | 'gemini'>(
-    settings?.llmConfig?.provider ?? 'openai'
-  );
+  const [llmProvider, setLlmProvider] = useState<
+    'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'glm' | 'ollama'
+  >(settings?.llmConfig?.provider ?? 'openai');
   const [llmModel, setLlmModel] = useState(settings?.llmConfig?.model ?? 'gpt-5.1');
+  const [llmBaseUrl, setLlmBaseUrl] = useState(settings?.llmConfig?.baseUrl ?? '');
   const [searchApiKey, setSearchApiKey] = useState(settings?.searchConfig?.apiKey ?? '');
   const [searchProvider, setSearchProvider] = useState<'serpapi' | 'google'>(
     settings?.searchConfig?.provider ?? 'serpapi'
@@ -56,6 +58,7 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
       setLlmApiKey(settings.llmConfig?.apiKey ?? '');
       setLlmProvider(settings.llmConfig?.provider ?? 'openai');
       setLlmModel(settings.llmConfig?.model ?? 'gpt-5.1');
+      setLlmBaseUrl(settings.llmConfig?.baseUrl ?? '');
       setSearchApiKey(settings.searchConfig?.apiKey ?? '');
       setSearchProvider(settings.searchConfig?.provider ?? 'serpapi');
       setSearchEngineId(settings.searchConfig?.searchEngineId ?? '');
@@ -70,7 +73,12 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
     try {
       const newSettings: StoredSettings = {
         llmConfig: llmApiKey
-          ? { provider: llmProvider, apiKey: llmApiKey, model: llmModel }
+          ? {
+              provider: llmProvider,
+              apiKey: llmApiKey,
+              model: llmModel,
+              baseUrl: llmBaseUrl || undefined,
+            }
           : undefined,
         searchConfig: searchApiKey
           ? {
@@ -106,9 +114,14 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
     setSaveStatus('idle');
   };
 
-  const handleProviderChange = (provider: 'openai' | 'anthropic' | 'gemini') => {
+  const handleProviderChange = (
+    provider: 'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'glm' | 'ollama'
+  ) => {
     setLlmProvider(provider);
-    setLlmModel(MODEL_OPTIONS[provider][0]);
+    setLlmModel(MODEL_OPTIONS[provider]?.[0] || '');
+    if (provider === 'ollama') {
+      setLlmBaseUrl('http://localhost:11434/api/chat');
+    }
   };
 
   return (
@@ -126,6 +139,7 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
                 <option value="openai">OpenAI</option>
                 <option value="anthropic">Anthropic</option>
                 <option value="gemini">Gemini</option>
+                <option value="deepseek">DeepSeek</option>
               </select>
             </div>
             <div className="space-y-1">
@@ -153,6 +167,24 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
               className="input-brutal"
             />
           </div>
+          {(llmProvider === 'ollama' || llmProvider === 'deepseek') && (
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider">
+                Base URL {llmProvider === 'deepseek' && '(Optional)'}
+              </label>
+              <input
+                type="text"
+                value={llmBaseUrl}
+                onChange={(e) => setLlmBaseUrl(e.target.value)}
+                placeholder={
+                  llmProvider === 'ollama'
+                    ? 'http://localhost:11434/api/chat'
+                    : 'https://api.deepseek.com/v1/chat/completions'
+                }
+                className="input-brutal"
+              />
+            </div>
+          )}
         </div>
       </Section>
 

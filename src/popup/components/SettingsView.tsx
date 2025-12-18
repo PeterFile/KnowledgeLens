@@ -24,6 +24,7 @@ const MODEL_OPTIONS: Record<string, string[]> = {
   ],
   deepseek: ['deepseek-chat', 'deepseek-reasoner'],
   glm: ['glm-4-plus', 'glm-4-0520', 'glm-4', 'glm-4-air', 'glm-4-flash'],
+  ollama: ['llama3', 'llama3.1', 'mistral', 'phi3', 'gemma2'],
 };
 
 // Default agent settings
@@ -142,6 +143,7 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
                 <option value="gemini">Gemini</option>
                 <option value="deepseek">DeepSeek</option>
                 <option value="glm">GLM (Zhipu AI)</option>
+                <option value="ollama">Ollama (Local)</option>
               </select>
             </div>
             <div className="space-y-1">

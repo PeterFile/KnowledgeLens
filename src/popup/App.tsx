@@ -132,7 +132,11 @@ function App() {
           )}
           {activeTab === 'chat' && <ChatView />}
           {activeTab === 'settings' && (
-            <SettingsView settings={settings} setSettings={setSettings} />
+            <SettingsView
+              key={JSON.stringify(settings)}
+              settings={settings}
+              setSettings={setSettings}
+            />
           )}
         </div>
       </main>

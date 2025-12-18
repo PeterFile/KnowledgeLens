@@ -11,12 +11,13 @@ import type {
   RAGConfig,
 } from './types';
 import type { LLMConfig, ChatMessage, SearchConfig } from '../../types';
-import { callLLMWithMessages, callLLMWithImage, getMaxContextTokens } from '../api';
+import { callLLMWithMessages, callLLMWithImage } from '../api';
 import { runAgentLoop, createAgentConfig, getFinalResponse } from './loop';
 import { createContext, addToContext, createContextEntry } from './context';
 import { createEpisodicMemory } from './reflection';
-import { countTokens, truncateToTokens, getEncodingForModel } from '../tokenizer';
+import { countTokens } from '../tokenizer';
 import { agenticRAG, formatResultsForCitation, DEFAULT_RAG_CONFIG } from './rag';
+import { loadTemplate } from './prompts';
 
 // ============================================================================
 // Goal Types
@@ -130,8 +131,8 @@ export interface SummarizeGoalParams {
 
 /**
  * Handle page summarization goal.
- * Uses direct LLM call for simple pages, full agent loop for complex pages.
- * Requirements: 1.1, 1.5 - Maintain backward compatibility for simple summaries
+ * Uses progressive hierarchical summary logic.
+ * Requirements: Progressive Hierarchical Summary
  */
 export async function handleSummarizeGoal(
   params: SummarizeGoalParams,
@@ -143,57 +144,70 @@ export async function handleSummarizeGoal(
   const sessionId = `summarize_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   const goal = `Summarize the content from ${params.pageUrl}`;
 
-  // Check if content is complex enough for agent loop
-  const useAgent = isComplexContent(params.content);
+  // 1. Classification & Analysis
+  const classification = classifyContent(params.content);
 
-  if (!useAgent) {
-    // Simple content - use direct LLM call for efficiency
-    return handleSimpleSummarize(params, llmConfig, sessionId, goal, onStatus, onChunk, signal);
-  }
-
-  // Complex content - use full agent loop
-  return handleAgentSummarize(params, llmConfig, sessionId, goal, onStatus, onChunk, signal);
-}
-
-/**
- * Handle simple summarization with direct LLM call.
- */
-async function handleSimpleSummarize(
-  params: SummarizeGoalParams,
-  llmConfig: LLMConfig,
-  sessionId: string,
-  goal: string,
-  onStatus: StatusCallback,
-  onChunk?: (chunk: string) => void,
-  signal?: AbortSignal
-): Promise<GoalHandlerResult> {
   onStatus({
-    phase: 'thinking',
+    phase: 'analyzing',
     stepNumber: 1,
-    maxSteps: 1,
+    maxSteps: 3,
     tokenUsage: { input: 0, output: 0 },
   });
 
-  // Truncate content to fit within context window
-  const encoding = getEncodingForModel(llmConfig.provider, llmConfig.model);
-  const maxContentTokens = getMaxContextTokens(llmConfig) - 2000;
-  const safeContent = truncateToTokens(params.content, maxContentTokens, encoding);
+  // 2. Select Prompt based on Classification
+  let promptTemplateName = 'SUMMARY_HIERARCHICAL';
+  if (classification.type === 'SNAPSHOT') {
+    promptTemplateName = 'SUMMARY_SNAPSHOT';
+  } else if (classification.type === 'INVENTORY') {
+    promptTemplateName = 'SUMMARY_INVENTORY';
+  }
 
-  const messages: ChatMessage[] = [
-    { role: 'system', content: SYSTEM_PROMPTS.summarize },
-    {
-      role: 'user',
-      content: `Please summarize the following web page content.
+  // 3. Execution (Standard LLM Call for Level 1/2)
+  // We use direct call for L1/L2 as it's a transformation task, not a multi-step agent task.
+  // Agent loop is reserved for "Deep Dive" (Level 3) which is a separate user action.
 
-Page URL: ${params.pageUrl}
-${params.pageTitle ? `Page Title: ${params.pageTitle}` : ''}
+  const template = loadTemplate(promptTemplateName);
+  // Prepare context for template
+  // We need to extract metadata from params.content if possible, or pass it in params (updated implementation plan suggested extraction upgrade)
+  // For now, we assume params.content is the main text.
 
-Content:
-${safeContent}`,
-    },
-  ];
+  const context = {
+    content: params.content,
+    title: params.pageTitle || '',
+    description: '', // Metadata would come from ExtractedContent if we had it here, but params is just string mostly.
+    // Ideally params should be ExtractedContent, but matching signature for now.
+  };
 
+  // const systemMessage = renderTemplate(template, context); // Actually this renders the whole thing usually.
+  // Wait, renderTemplate returns string parts. We need to adapt it for ChatMessage.
+  // New prompt system returns styled string. Let's use it as User message with a specific System instruction?
+  // The TEMPLATE structure has 'system' and 'content' sections.
+  // let's manually extract sections for ChatMessage construction to fit `callLLMWithMessages`.
+
+  // Quick fix: Use the sections from template to build messages
+  const messages: ChatMessage[] = [];
+
+  const systemSection = template.sections.find((s) => s.name === 'system');
+  if (systemSection) {
+    messages.push({ role: 'system', content: injectPlaceholders(systemSection.content, context) });
+  }
+
+  const contentSection = template.sections.find((s) => s.name === 'content');
+  const metadataSection = template.sections.find((s) => s.name === 'metadata');
+
+  const userContent = [
+    metadataSection ? injectPlaceholders(metadataSection.content, context) : '',
+    contentSection ? injectPlaceholders(contentSection.content, context) : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+
+  messages.push({ role: 'user', content: userContent });
+
+  // Stream Response
   let response = '';
+  onStatus({ phase: 'thinking', stepNumber: 2, maxSteps: 3, tokenUsage: { input: 0, output: 0 } });
+
   const llmResponse = await callLLMWithMessages(
     messages,
     llmConfig,
@@ -204,17 +218,180 @@ ${safeContent}`,
     signal
   );
 
-  const inputTokens = llmResponse.usage?.promptTokens ?? countTokens(messages[1].content);
+  const inputTokens = llmResponse.usage?.promptTokens ?? countTokens(JSON.stringify(messages));
   const outputTokens = llmResponse.usage?.completionTokens ?? countTokens(response);
 
   onStatus({
-    phase: 'synthesizing',
-    stepNumber: 1,
-    maxSteps: 1,
+    phase: 'done',
+    stepNumber: 3,
+    maxSteps: 3,
     tokenUsage: { input: inputTokens, output: outputTokens },
   });
 
-  // Create minimal trajectory for consistency
+  // Create trajectory
+  const trajectory: AgentTrajectory = {
+    requestId: sessionId,
+    goal,
+    steps: [
+      {
+        stepNumber: 1,
+        timestamp: Date.now(),
+        type: 'observation',
+        content: `Classified content as: ${classification.type} (Confidence: ${classification.confidence})`,
+        tokenCount: 0,
+      },
+      {
+        stepNumber: 2,
+        timestamp: Date.now(),
+        type: 'synthesis',
+        content: response,
+        tokenCount: outputTokens,
+      },
+    ],
+    status: 'completed',
+    totalTokens: { input: inputTokens, output: outputTokens },
+    efficiency: 1,
+  };
+
+  const agentContext = createContext(goal, 128000);
+  const memory = createEpisodicMemory(sessionId);
+
+  return {
+    trajectory,
+    context: agentContext,
+    memory,
+    log: {
+      requestId: sessionId,
+      entries: [],
+      metrics: {
+        totalSteps: 2,
+        totalTokens: { input: inputTokens, output: outputTokens },
+        duration: 0,
+        errorCount: 0,
+      },
+    },
+    response,
+    usedAgent: false,
+  };
+}
+
+// Helper: Classification Logic
+function classifyContent(content: string): {
+  type: 'SNAPSHOT' | 'INVENTORY' | 'HIERARCHICAL';
+  confidence: number;
+} {
+  const tokenCount = countTokens(content);
+
+  // snapshot
+  if (tokenCount < 350) {
+    return { type: 'SNAPSHOT', confidence: 0.9 };
+  }
+
+  // Inventory / Messy detection
+  // Inventory / Messy detection
+  const linkDensity = (content.match(/http|www|\.com/g) || []).length / (content.length / 100);
+  const listDensity = (content.match(/^[-*] /gm) || []).length / content.split('\n').length;
+  // const headingToTextRatio = (content.match(/^#/gm) || []).length / (tokenCount / 100);
+
+  // High link density + high list density = Navigation/Resource list
+  if (linkDensity > 5 || (listDensity > 0.5 && tokenCount < 1000)) {
+    return { type: 'INVENTORY', confidence: 0.8 };
+  }
+
+  return { type: 'HIERARCHICAL', confidence: 1.0 };
+}
+
+// Helper for manual placeholder injection (since we're decomposing the template manually)
+function injectPlaceholders(content: string, context: Record<string, unknown>): string {
+  return content.replace(/\{\{(\w+)\}\}/g, (match, name) => {
+    if (!(name in context)) return match;
+    return String(context[name]);
+  });
+}
+
+/**
+ * Handle agent summarize (Legacy / Deep Dive placeholder - for now redirected)
+ */
+// @ts-expect-error - Kept for future Deep Dive implementation
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function handleAgentSummarize(
+  params: SummarizeGoalParams,
+  llmConfig: LLMConfig,
+  _sessionId: string,
+  _goal: string,
+  onStatus: StatusCallback,
+  onChunk?: (chunk: string) => void,
+  signal?: AbortSignal
+): Promise<GoalHandlerResult> {
+  // This function is kept for signature compatibility but logic is moved to main handler
+  return handleSummarizeGoal(params, llmConfig, onStatus, onChunk, signal);
+}
+
+/**
+ * Handle Deep Dive (Level 3) Goal.
+ */
+export async function handleDeepDiveGoal(
+  params: SummarizeGoalParams,
+  llmConfig: LLMConfig,
+  onStatus: StatusCallback,
+  onChunk?: (chunk: string) => void,
+  signal?: AbortSignal
+): Promise<GoalHandlerResult> {
+  const sessionId = `deep_dive_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const goal = `Deep Dive into content from ${params.pageUrl}`;
+
+  onStatus({
+    phase: 'analyzing',
+    stepNumber: 1,
+    maxSteps: 3,
+    tokenUsage: { input: 0, output: 0 },
+  });
+
+  const template = loadTemplate('HIERARCHICAL_SUMMARY_PROMPT_L3');
+
+  const context = {
+    content: params.content,
+    title: params.pageTitle || '',
+    description: '',
+  };
+
+  const messages: ChatMessage[] = [];
+
+  const systemSection = template.sections.find((s) => s.name === 'system');
+  if (systemSection) {
+    messages.push({ role: 'system', content: injectPlaceholders(systemSection.content, context) });
+  }
+
+  const contentSection = template.sections.find((s) => s.name === 'content');
+  if (contentSection) {
+    messages.push({ role: 'user', content: injectPlaceholders(contentSection.content, context) });
+  }
+
+  // Stream Response
+  let response = '';
+  onStatus({ phase: 'thinking', stepNumber: 2, maxSteps: 3, tokenUsage: { input: 0, output: 0 } });
+
+  const llmResponse = await callLLMWithMessages(
+    messages,
+    llmConfig,
+    (chunk) => {
+      response += chunk;
+      if (onChunk) onChunk(chunk);
+    },
+    signal
+  );
+
+  const inputTokens = llmResponse.usage?.promptTokens ?? countTokens(JSON.stringify(messages));
+  const outputTokens = llmResponse.usage?.completionTokens ?? countTokens(response);
+
+  onStatus({
+    phase: 'done',
+    stepNumber: 3,
+    maxSteps: 3,
+    tokenUsage: { input: inputTokens, output: outputTokens },
+  });
+
+  // Create trajectory
   const trajectory: AgentTrajectory = {
     requestId: sessionId,
     goal,
@@ -232,12 +409,12 @@ ${safeContent}`,
     efficiency: 1,
   };
 
-  const context = createContext(goal, 128000);
+  const agentContext = createContext(goal, 128000);
   const memory = createEpisodicMemory(sessionId);
 
   return {
     trajectory,
-    context,
+    context: agentContext,
     memory,
     log: {
       requestId: sessionId,
@@ -251,53 +428,6 @@ ${safeContent}`,
     },
     response,
     usedAgent: false,
-  };
-}
-
-/**
- * Handle complex summarization with full agent loop.
- */
-async function handleAgentSummarize(
-  params: SummarizeGoalParams,
-  llmConfig: LLMConfig,
-  sessionId: string,
-  goal: string,
-  onStatus: StatusCallback,
-  onChunk?: (chunk: string) => void,
-  signal?: AbortSignal
-): Promise<GoalHandlerResult> {
-  const config = createAgentConfig(llmConfig, {
-    maxSteps: 5,
-    maxRetries: 2,
-    tokenBudget: 50000,
-  });
-
-  // Create context with page content as grounding
-  const context = createContext(goal, 128000);
-  const contextWithContent = addToContext(
-    context,
-    createContextEntry(
-      'user',
-      `Page URL: ${params.pageUrl}\n${params.pageTitle ? `Title: ${params.pageTitle}\n` : ''}Content:\n${params.content.slice(0, 10000)}`
-    )
-  );
-
-  const memory = createEpisodicMemory(sessionId);
-
-  const result = await runAgentLoop(
-    goal,
-    contextWithContent,
-    memory,
-    config,
-    onStatus,
-    onChunk,
-    signal
-  );
-
-  return {
-    ...result,
-    response: getFinalResponse(result.trajectory),
-    usedAgent: true,
   };
 }
 

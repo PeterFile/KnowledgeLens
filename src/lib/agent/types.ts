@@ -14,7 +14,13 @@ export interface AgentConfig {
   llmConfig: LLMConfig;
 }
 
-export type AgentPhase = 'thinking' | 'executing' | 'analyzing' | 'reflecting' | 'synthesizing';
+export type AgentPhase =
+  | 'thinking'
+  | 'executing'
+  | 'analyzing'
+  | 'reflecting'
+  | 'synthesizing'
+  | 'done';
 
 export interface AgentStatus {
   phase: AgentPhase;

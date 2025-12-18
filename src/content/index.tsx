@@ -110,6 +110,21 @@ function handleSearch(): void {
 }
 
 /**
+ * Handle summary activation.
+ */
+function handleSummary(payload: { content: string; pageUrl: string }): void {
+  const panelId = generatePanelId();
+  const container = getShadowContainer(panelId);
+  container.render(
+    <FloatingPanel
+      context={payload.content}
+      mode="summary"
+      onClose={() => hidePanelById(panelId)}
+    />
+  );
+}
+
+/**
  * Handle selection change.
  * Allows new selections even when panels are open.
  */
@@ -260,6 +275,13 @@ function handleExtensionMessage(
     // Requirements: 1.1 - Text extraction for summary
     const content = document.body.innerText || '';
     sendResponse({ content });
+    return true;
+  }
+
+  if (message.action === 'trigger_summary_panel') {
+    const payload = (message as any).payload;
+    handleSummary(payload);
+    sendResponse({ success: true });
     return true;
   }
   return false;

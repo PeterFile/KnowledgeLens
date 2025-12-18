@@ -1244,6 +1244,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
       handleAgentGetStatus(message.payload, sendResponse);
       return true; // Keep channel open for async response
 
+    case 'trigger_summary_panel':
+      // Handled by content script, but background sees it due to shared type
+      return false;
+
     default: {
       const exhaustiveCheck: never = message;
       void exhaustiveCheck;

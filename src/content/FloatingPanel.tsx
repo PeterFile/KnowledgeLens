@@ -10,9 +10,9 @@ import type { AgentPhase } from '../lib/agent/types';
 type PanelStatus = 'loading' | 'streaming' | 'done' | 'error' | 'agent_running';
 
 interface FloatingPanelProps {
-  selectedText: string;
-  context: string;
-  mode: 'explain' | 'search';
+  selectedText?: string;
+  context?: string;
+  mode: 'explain' | 'search' | 'summary';
   onClose: () => void;
 }
 
@@ -282,15 +282,28 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
     setStatus('loading');
     setContent('');
     setError(null);
+    if (mode === 'summary') {
+      const requestId = `summary_${Date.now()}`;
+      setRequestId(requestId);
+      chrome.runtime.sendMessage({
+        action: 'summarize_page',
+        payload: { content: context || '', pageUrl: window.location.href, requestId },
+        requestId,
+      });
+      return;
+    }
     const action = mode === 'search' ? 'search_enhance' : 'explain_text';
-    chrome.runtime.sendMessage({ action, payload: { text: selectedText, context } }, (response) => {
-      if (response?.success && response.data?.requestId) {
-        setRequestId(response.data.requestId);
-      } else if (response?.error) {
-        setError(response.error);
-        setStatus('error');
+    chrome.runtime.sendMessage(
+      { action, payload: { text: selectedText || '', context: context || '' } },
+      (response) => {
+        if (response?.success && response.data?.requestId) {
+          setRequestId(response.data.requestId);
+        } else if (response?.error) {
+          setError(response.error);
+          setStatus('error');
+        }
       }
-    });
+    );
   }, [mode, selectedText, context]);
 
   useEffect(() => {
@@ -380,7 +393,9 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
     }
   };
 
-  const title = mode === 'search' ? 'WEB SEARCH' : 'CONTEXT EXPLAIN';
+  const title =
+    mode === 'summary' ? 'PAGE SUMMARY' : mode === 'search' ? 'WEB SEARCH' : 'CONTEXT EXPLAIN';
+  const headerBg = mode === 'summary' ? '#F59E0B' : '#4F46E5'; // Amber for summary, Indigo for others
   const isInteracting = isDragging || isResizing;
 
   // -- STYLE DEFINITIONS: REFINED NEO-BRUTALISM --
@@ -411,7 +426,7 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '10px 14px',
-          background: '#4F46E5', // Electric Indigo
+          background: headerBg,
           borderBottom: '1px solid #000',
           borderRadius: '5px 5px 0 0',
           cursor: isDragging ? 'grabbing' : 'grab',
@@ -503,8 +518,11 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
               INPUT
             </span>
             <span style={{ opacity: 0.8 }}>
-              &quot;{selectedText.length > 50 ? selectedText.slice(0, 50) + '...' : selectedText}
-              &quot;
+              {mode === 'summary'
+                ? 'FULL PAGE'
+                : selectedText && selectedText.length > 50
+                  ? selectedText.slice(0, 50) + '...'
+                  : selectedText}
             </span>
           </div>
 
@@ -623,11 +641,13 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
               }}
               onMouseDown={(e) => {
                 e.currentTarget.style.transform = 'translate(1px, 1px)';
-                e.currentTarget.style.boxShadow = '0 0 0 0 #4F46E5';
+                e.currentTarget.style.boxShadow =
+                  '0 0 0 0 ' + (mode === 'summary' ? '#F59E0B' : '#4F46E5');
               }}
               onMouseUp={(e) => {
                 e.currentTarget.style.transform = 'translate(0, 0)';
-                e.currentTarget.style.boxShadow = '2px 2px 0 0 #4F46E5';
+                e.currentTarget.style.boxShadow =
+                  '2px 2px 0 0 ' + (mode === 'summary' ? '#F59E0B' : '#4F46E5');
               }}
             >
               REGENERATE

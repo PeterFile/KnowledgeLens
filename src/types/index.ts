@@ -2,9 +2,10 @@
 
 // LLM Provider Configuration
 export interface LLMConfig {
-  provider: 'openai' | 'anthropic' | 'gemini';
+  provider: 'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'glm' | 'ollama';
   apiKey: string;
   model: string;
+  baseUrl?: string; // Optional custom base URL for Ollama/DeepSeek/etc.
   maxContextTokens?: number;
 }
 

@@ -111,6 +111,121 @@ ${searchContext}
 Please provide an explanation of the selected text, incorporating relevant information from the search results. Include citations to the sources where appropriate.`;
 }
 
+// Common English stop words to filter out
+const STOP_WORDS = new Set([
+  'a',
+  'an',
+  'the',
+  'and',
+  'or',
+  'but',
+  'in',
+  'on',
+  'at',
+  'to',
+  'for',
+  'of',
+  'with',
+  'by',
+  'from',
+  'as',
+  'is',
+  'was',
+  'are',
+  'were',
+  'been',
+  'be',
+  'have',
+  'has',
+  'had',
+  'do',
+  'does',
+  'did',
+  'will',
+  'would',
+  'could',
+  'should',
+  'may',
+  'might',
+  'must',
+  'shall',
+  'can',
+  'need',
+  'it',
+  'its',
+  'this',
+  'that',
+  'these',
+  'those',
+  'i',
+  'you',
+  'he',
+  'she',
+  'we',
+  'they',
+  'what',
+  'which',
+  'who',
+  'whom',
+  'when',
+  'where',
+  'why',
+  'how',
+  'all',
+  'each',
+  'every',
+  'both',
+  'few',
+  'more',
+  'most',
+  'other',
+  'some',
+  'such',
+  'no',
+  'nor',
+  'not',
+  'only',
+  'own',
+  'same',
+  'so',
+  'than',
+  'too',
+  'very',
+  'just',
+  'also',
+  'now',
+  'here',
+  'there',
+]);
+
+/**
+ * Extract keywords from text for search purposes.
+ * Returns top keywords sorted by frequency, excluding stop words.
+ */
+export function extractKeywords(text: string, maxKeywords = 5): string[] {
+  if (!text || !text.trim()) {
+    return [];
+  }
+
+  // Extract words (alphanumeric, underscore allowed)
+  const words = text.toLowerCase().match(/\b[a-z0-9_]+\b/g) ?? [];
+
+  // Filter out stop words and short words
+  const meaningfulWords = words.filter((word) => word.length > 2 && !STOP_WORDS.has(word));
+
+  // Count frequency
+  const freq = new Map<string, number>();
+  for (const word of meaningfulWords) {
+    freq.set(word, (freq.get(word) ?? 0) + 1);
+  }
+
+  // Sort by frequency and return top N unique keywords
+  return [...freq.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, maxKeywords)
+    .map(([word]) => word);
+}
+
 /**
  * Use LLM to generate an optimal search query from user-selected text.
  * This is the "Agentic" approach - letting the model understand intent

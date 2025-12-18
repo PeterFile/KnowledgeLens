@@ -16,4 +16,9 @@ export {
 } from './llm';
 
 // Re-export Search functionality
-export { searchWeb, buildSearchEnhancedPrompt, generateSearchQuery } from './search';
+export {
+  searchWeb,
+  buildSearchEnhancedPrompt,
+  generateSearchQuery,
+  extractKeywords,
+} from './search';

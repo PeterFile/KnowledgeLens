@@ -148,17 +148,27 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-wider">Model</label>
-              <select
-                value={llmModel}
-                onChange={(e) => setLlmModel(e.target.value)}
-                className="select-brutal"
-              >
-                {MODEL_OPTIONS[llmProvider].map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
+              {llmProvider === 'ollama' ? (
+                <input
+                  type="text"
+                  value={llmModel}
+                  onChange={(e) => setLlmModel(e.target.value)}
+                  placeholder="e.g. llama3"
+                  className="input-brutal"
+                />
+              ) : (
+                <select
+                  value={llmModel}
+                  onChange={(e) => setLlmModel(e.target.value)}
+                  className="select-brutal"
+                >
+                  {MODEL_OPTIONS[llmProvider]?.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
           <div className="space-y-1">

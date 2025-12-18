@@ -147,7 +147,7 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
   };
 
   return (
-    <div className="h-full w-full bg-brutal-bg p-4 overflow-y-auto font-mono text-xs">
+    <div className="h-full w-full bg-brutal-bg p-4 overflow-y-auto font-mono text-xs space-y-6 pb-24">
       <Section title="AI Model Configuration">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">

@@ -70,6 +70,7 @@ const PHASE_CONFIG: Record<AgentPhase | 'idle', { label: string; bg: string; col
   analyzing: { label: 'ANALYZING', bg: '#F5F3FF', color: '#7C3AED' },
   reflecting: { label: 'REFLECTING', bg: '#FDF2F8', color: '#DB2777' },
   synthesizing: { label: 'WRITING', bg: '#ECFDF5', color: '#059669' },
+  done: { label: 'DONE', bg: '#ECFDF5', color: '#059669' },
 };
 
 interface AgentStatusIndicatorProps {
@@ -262,6 +263,7 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
   const [content, setContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [requestId, setRequestId] = useState<string | null>(null);
+  const requestIdRef = useRef<string | null>(null); // Ref to avoid listener race condition
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -283,12 +285,13 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
     setContent('');
     setError(null);
     if (mode === 'summary') {
-      const requestId = `summary_${Date.now()}`;
-      setRequestId(requestId);
+      const newRequestId = `summary_${Date.now()}`;
+      setRequestId(newRequestId);
+      requestIdRef.current = newRequestId;
       chrome.runtime.sendMessage({
         action: 'summarize_page',
-        payload: { content: context || '', pageUrl: window.location.href, requestId },
-        requestId,
+        payload: { content: context || '', pageUrl: window.location.href, requestId: newRequestId },
+        requestId: newRequestId,
       });
       return;
     }
@@ -297,7 +300,9 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
       { action, payload: { text: selectedText || '', context: context || '' } },
       (response) => {
         if (response?.success && response.data?.requestId) {
-          setRequestId(response.data.requestId);
+          const newRequestId = response.data.requestId;
+          setRequestId(newRequestId);
+          requestIdRef.current = newRequestId;
         } else if (response?.error) {
           setError(response.error);
           setStatus('error');
@@ -308,7 +313,10 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
 
   useEffect(() => {
     const handleMessage = (message: StreamingMessage | AgentStatusMessage) => {
-      if ('requestId' in message && requestId && message.requestId === requestId) {
+      // Use ref to check ID without re-attaching listener
+      const currentRequestId = requestIdRef.current;
+
+      if ('requestId' in message && currentRequestId && message.requestId === currentRequestId) {
         const streamMsg = message as StreamingMessage;
         switch (streamMsg.type) {
           case 'streaming_start':
@@ -330,11 +338,12 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
         }
       }
 
-      if ('sessionId' in message && requestId && message.sessionId === requestId) {
+      if ('sessionId' in message && currentRequestId && message.sessionId === currentRequestId) {
         const agentMsg = message as AgentStatusMessage;
         switch (agentMsg.type) {
           case 'agent_status_update':
-            setStatus('agent_running');
+            // Don't overwrite 'done' status if streaming finished first
+            setStatus((prev) => (prev === 'done' ? 'done' : 'agent_running'));
             if (agentMsg.phase) setAgentPhase(agentMsg.phase);
             if (agentMsg.stepNumber !== undefined && agentMsg.maxSteps !== undefined) {
               setAgentStep({ current: agentMsg.stepNumber, max: agentMsg.maxSteps });
@@ -356,8 +365,14 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
         }
       }
     };
+
     chrome.runtime.onMessage.addListener(handleMessage);
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
+  }, []); // Run once on mount
+
+  // Sync ref when requestId prop changes
+  useEffect(() => {
+    requestIdRef.current = requestId;
   }, [requestId]);
 
   useEffect(() => {
@@ -551,7 +566,12 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
                 />
                 {content && (
                   <div className="kl-markdown" style={{ opacity: 0.7 }}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                    {/* Custom Rendering for Hierarchical Summary */}
+                    {mode === 'summary' && content.includes('# Level 1: TL;DR') ? (
+                      <HierarchicalSummaryView content={content} />
+                    ) : (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                    )}
                   </div>
                 )}
               </>
@@ -559,7 +579,12 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
 
             {(status === 'streaming' || status === 'done') && (
               <div className="kl-markdown">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                {/* Custom Rendering for Hierarchical Summary */}
+                {mode === 'summary' && content.includes('# Level 1: TL;DR') ? (
+                  <HierarchicalSummaryView content={content} />
+                ) : (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                )}
                 {status === 'streaming' && (
                   <span
                     style={{
@@ -728,6 +753,123 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
            margin: 1em 0;
         }
       `}</style>
+    </div>
+  );
+}
+
+// Hierarchical Summary Component
+function HierarchicalSummaryView({ content }: { content: string }) {
+  const [showDeepDive, setShowDeepDive] = useState(false);
+
+  // Parse content manually since we want specific control
+  const tldrMatch = content.match(/# Level 1: TL;DR\s*\n> (.*)/);
+  const tldr = tldrMatch ? tldrMatch[1] : '';
+
+  const execSummaryStart = content.indexOf('# Level 2: Executive Brief');
+  const execSummary = execSummaryStart !== -1 ? content.slice(execSummaryStart + 26).trim() : '';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Level 1: TL;DR - Hero Section */}
+      {tldr && (
+        <div
+          style={{
+            background: '#FFFBEB',
+            borderLeft: '4px solid #F59E0B',
+            padding: '12px 16px',
+            fontSize: '15px',
+            fontWeight: '500',
+            color: '#1F2937',
+          }}
+        >
+          <span
+            style={{
+              display: 'block',
+              fontSize: '10px',
+              textTransform: 'uppercase',
+              color: '#D97706',
+              fontWeight: '700',
+              marginBottom: '4px',
+            }}
+          >
+            TL;DR
+          </span>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              p: ({ node: _node, ...props }) => <p style={{ margin: 0 }} {...props} />,
+            }}
+          >
+            {tldr}
+          </ReactMarkdown>
+        </div>
+      )}
+
+      {/* Level 2: Executive Summary */}
+      {execSummary && (
+        <div style={{ padding: '0 4px' }}>
+          <h3
+            style={{
+              fontSize: '13px',
+              textTransform: 'uppercase',
+              fontWeight: '700',
+              borderBottom: '2px solid #E5E7EB',
+              paddingBottom: '4px',
+              marginBottom: '8px',
+            }}
+          >
+            Executive Brief
+          </h3>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{execSummary}</ReactMarkdown>
+        </div>
+      )}
+
+      {/* Level 3: Deep Dive Action */}
+      <div style={{ marginTop: '8px' }}>
+        <button
+          onClick={() => setShowDeepDive(!showDeepDive)}
+          style={{
+            width: '100%',
+            padding: '8px',
+            background: showDeepDive ? '#F3F4F6' : '#fff',
+            border: '1px dashed #9CA3AF',
+            color: '#4B5563',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '12px',
+            fontWeight: '600',
+            transition: 'all 0.2s',
+          }}
+        >
+          {showDeepDive ? '▼ HIDE DEEP DIVE' : '▶ EXPAND DEEP DIVE (LEVEL 3)'}
+        </button>
+
+        {showDeepDive && (
+          <div
+            style={{
+              marginTop: '12px',
+              padding: '12px',
+              background: '#F9FAFB',
+              borderRadius: '4px',
+            }}
+          >
+            <div
+              style={{
+                fontSize: '11px',
+                color: '#6B7280',
+                marginBottom: '8px',
+                fontStyle: 'italic',
+              }}
+            >
+              Agent is analyzing deeper context... (Simulation)
+            </div>
+            <p>
+              [Detailed Section Breakdown Would Appear Here - Connecting to RAG/Agent Loop in next
+              iteration]
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

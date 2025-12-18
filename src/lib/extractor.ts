@@ -2,6 +2,10 @@ import { countTokens, truncateToTokens, TokenizerEncoding } from './tokenizer';
 
 export interface ExtractedContent {
   title: string;
+  metadata?: {
+    description?: string;
+    [key: string]: any;
+  };
   mainText: string;
   wordCount: number;
   tokenCount: number;
@@ -30,6 +34,7 @@ const REMOVE_ELEMENTS = [
 ];
 
 // Elements that are typically navigation/non-content
+// Elements that are typically navigation/non-content
 const NAVIGATION_SELECTORS = [
   'nav',
   'header',
@@ -52,6 +57,9 @@ const NAVIGATION_SELECTORS = [
   '.social-share',
   '.comments',
   '.related-posts',
+  '#comments',
+  '#sidebar',
+  '.widget-area',
 ];
 
 /**
@@ -83,9 +91,47 @@ export function cleanHtml(html: string): string {
     }
   }
 
+  // Experimental: Clean noise using heuristics
+  cleanNoise(doc.body);
+
   // Get text content and normalize whitespace
   const text = doc.body?.textContent || '';
   return normalizeWhitespace(text);
+}
+
+/**
+ * Heuristically remove noisy elements (e.g., date-only lines, social buttons text).
+ */
+function cleanNoise(root: HTMLElement | null) {
+  if (!root) return;
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+  const toRemove: Element[] = [];
+
+  while (walker.nextNode()) {
+    const el = walker.currentNode as Element;
+    // Skip if it contains significant children (we only want to prune "leaves" or near-leaves)
+    if (el.querySelectorAll('p, div, section').length > 0) continue;
+
+    const text = (el.textContent || '').trim();
+
+    // Heuristic 1: Very short text that looks like UI noise (e.g. "Reply", "Share")
+    if (text.length < 20 && /^(reply|share|like|follow|comment|posted on|read more)/i.test(text)) {
+      // Only remove if it's a block level element or an isolated span
+      if (['DIV', 'P', 'SPAN', 'LI'].includes(el.tagName)) {
+        toRemove.push(el);
+      }
+    }
+
+    // Heuristic 2: Date-only lines (e.g. 2023-10-12)
+    if (text.length < 50 && /^(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\w+ \d{1,2},? \d{4})/.test(text)) {
+      if (['DIV', 'P', 'SPAN', 'TIME'].includes(el.tagName)) {
+        toRemove.push(el);
+      }
+    }
+  }
+
+  toRemove.forEach((el) => el.remove());
 }
 
 /**
@@ -105,6 +151,10 @@ function normalizeWhitespace(text: string): string {
 export function extractPageContent(document: Document): ExtractedContent {
   const title = document.title || '';
 
+  // Extract meta description
+  const metaDescQuery = document.querySelector('meta[name="description"]');
+  const metaDescription = metaDescQuery ? metaDescQuery.getAttribute('content') || '' : '';
+
   // Try to find main content area using common selectors
   const mainContent = findMainContent(document);
 
@@ -118,6 +168,9 @@ export function extractPageContent(document: Document): ExtractedContent {
 
   return {
     title,
+    metadata: {
+      description: metaDescription,
+    },
     mainText,
     wordCount,
     tokenCount,
@@ -137,8 +190,8 @@ function findMainContent(document: Document): Element | null {
     '.post-content',
     '.article-content',
     '.entry-content',
+    '#content', // ID is often more specific than class
     '.content',
-    '#content',
     '.post',
     '.article',
   ];
@@ -171,12 +224,17 @@ function findLargestTextBlock(root: Element | null): Element | null {
   let maxLength = 0;
   let bestElement: Element | null = null;
 
-  // Check paragraphs and divs for text content
-  const candidates = root.querySelectorAll('p, div, section');
+  // Check paragraphs and divs for text content - we search deeper now
+  // Limiting scope to avoid traversing entire tree too expensively
+  const candidates = root.querySelectorAll('article, section, div, p');
 
   for (const element of candidates) {
     // Skip if it's a navigation element
     if (isNavigationElement(element)) continue;
+
+    // We want the *deepest* element that still contains a lot of text,
+    // but sometimes the text is split across multiple p tags in a div.
+    // So we prefer semantic tags if possible.
 
     const textLength = (element.textContent || '').trim().length;
     if (textLength > maxLength) {
@@ -193,18 +251,39 @@ function findLargestTextBlock(root: Element | null): Element | null {
  */
 function isNavigationElement(element: Element): boolean {
   const tagName = element.tagName.toLowerCase();
+
+  // Explicit tag check
   if (['nav', 'header', 'footer', 'aside'].includes(tagName)) {
     return true;
   }
 
+  // Role check
   const role = element.getAttribute('role');
   if (role && ['navigation', 'banner', 'contentinfo', 'complementary'].includes(role)) {
     return true;
   }
 
-  const className = element.className?.toLowerCase() || '';
-  const navKeywords = ['nav', 'menu', 'sidebar', 'footer', 'header', 'ad'];
-  return navKeywords.some((keyword) => className.includes(keyword));
+  // ID and Class check (more robust)
+  const id = element.id.toLowerCase();
+  const className = element.className?.toString().toLowerCase() || ''; // className can be SVGAnimatedString
+
+  const navKeywords = [
+    'nav',
+    'menu',
+    'sidebar',
+    'footer',
+    'header',
+    'ad-container',
+    'comment',
+    'popup',
+    'modal',
+  ];
+
+  if (navKeywords.some((keyword) => id.includes(keyword) || className.includes(keyword))) {
+    return true;
+  }
+
+  return false;
 }
 
 /**

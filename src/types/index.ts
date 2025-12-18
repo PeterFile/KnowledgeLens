@@ -142,7 +142,7 @@ export interface StreamingMessage {
 export interface AgentStatusMessage {
   type: 'agent_status_update' | 'agent_complete' | 'agent_error';
   sessionId: string;
-  phase?: 'thinking' | 'executing' | 'analyzing' | 'reflecting' | 'synthesizing' | 'idle';
+  phase?: 'thinking' | 'executing' | 'analyzing' | 'reflecting' | 'synthesizing' | 'done' | 'idle';
   stepNumber?: number;
   maxSteps?: number;
   tokenUsage?: { input: number; output: number };

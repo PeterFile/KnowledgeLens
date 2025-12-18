@@ -23,7 +23,19 @@ const MODEL_OPTIONS: Record<string, string[]> = {
     'gemini-2.5-flash-lite',
   ],
   deepseek: ['deepseek-chat', 'deepseek-reasoner'],
-  glm: ['glm-4-plus', 'glm-4-0520', 'glm-4', 'glm-4-air', 'glm-4-flash'],
+  glm: [
+    'glm-4.6',
+    'glm-4.5',
+    'glm-4.5-x',
+    'glm-4.5-air',
+    'glm-4.5-airx',
+    'glm-4-plus',
+    'glm-4-0520',
+    'glm-4',
+    'glm-4-air',
+    'glm-4-flash',
+    'glm-4-long',
+  ],
   ollama: ['llama3', 'llama3.1', 'mistral', 'phi3', 'gemma2'],
 };
 

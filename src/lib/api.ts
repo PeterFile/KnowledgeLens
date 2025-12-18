@@ -47,11 +47,17 @@ const DEFAULT_MAX_TOKENS: Record<string, number> = {
   'deepseek-reasoner': 64000,
 
   // --- GLM (Zhipu AI) Models ---
+  'glm-4.6': 200000,
+  'glm-4.5': 128000,
+  'glm-4.5-x': 128000,
+  'glm-4.5-air': 128000,
+  'glm-4.5-airx': 128000,
   'glm-4-plus': 128000,
   'glm-4-0520': 128000,
   'glm-4': 128000,
   'glm-4-air': 128000,
   'glm-4-flash': 128000,
+  'glm-4-long': 1000000,
 };
 
 /**

@@ -67,18 +67,21 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
   );
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
+  const [showBaseUrl, setShowBaseUrl] = useState(!!settings?.llmConfig?.baseUrl);
+
   useEffect(() => {
     if (settings) {
       setLlmApiKey(settings.llmConfig?.apiKey ?? '');
       setLlmProvider(settings.llmConfig?.provider ?? 'openai');
       setLlmModel(settings.llmConfig?.model ?? 'gpt-5.1');
       setLlmBaseUrl(settings.llmConfig?.baseUrl ?? '');
+      setShowBaseUrl(!!settings.llmConfig?.baseUrl);
       setSearchApiKey(settings.searchConfig?.apiKey ?? '');
       setSearchProvider(settings.searchConfig?.provider ?? 'serpapi');
       setSearchEngineId(settings.searchConfig?.searchEngineId ?? '');
-      setTokenBudget(settings.agentSettings?.tokenBudget ?? DEFAULT_TOKEN_BUDGET);
-      setMaxSteps(settings.agentSettings?.maxSteps ?? DEFAULT_MAX_STEPS);
-      setMaxRetries(settings.agentSettings?.maxRetries ?? DEFAULT_MAX_RETRIES);
+      setTokenBudget(settings.agentSettings?.tokenBudget ?? 10000);
+      setMaxSteps(settings.agentSettings?.maxSteps ?? 10);
+      setMaxRetries(settings.agentSettings?.maxRetries ?? 3);
     }
   }, [settings]);
 
@@ -91,7 +94,8 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
               provider: llmProvider,
               apiKey: llmApiKey,
               model: llmModel,
-              baseUrl: llmBaseUrl || undefined,
+              baseUrl:
+                (showBaseUrl || llmProvider === 'ollama') && llmBaseUrl ? llmBaseUrl : undefined,
             }
           : undefined,
         searchConfig: searchApiKey
@@ -135,11 +139,15 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
     setLlmModel(MODEL_OPTIONS[provider]?.[0] || '');
     if (provider === 'ollama') {
       setLlmBaseUrl('http://localhost:11434/api/chat');
+      setShowBaseUrl(true);
+    } else {
+      setLlmBaseUrl('');
+      setShowBaseUrl(false);
     }
   };
 
   return (
-    <div className="p-5 space-y-6 pb-20">
+    <div className="h-full w-full bg-brutal-bg p-4 overflow-y-auto font-mono text-xs">
       <Section title="AI Model Configuration">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -147,7 +155,17 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
               <label className="text-[10px] font-bold uppercase tracking-wider">Provider</label>
               <select
                 value={llmProvider}
-                onChange={(e) => handleProviderChange(e.target.value as any)}
+                onChange={(e) =>
+                  handleProviderChange(
+                    e.target.value as
+                      | 'openai'
+                      | 'anthropic'
+                      | 'gemini'
+                      | 'deepseek'
+                      | 'glm'
+                      | 'ollama'
+                  )
+                }
                 className="select-brutal"
               >
                 <option value="openai">OpenAI</option>
@@ -193,10 +211,30 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
               className="input-brutal"
             />
           </div>
-          {(llmProvider === 'ollama' || llmProvider === 'deepseek' || llmProvider === 'glm') && (
+
+          {(llmProvider === 'deepseek' || llmProvider === 'glm') && (
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="showBaseUrl"
+                checked={showBaseUrl}
+                onChange={(e) => setShowBaseUrl(e.target.checked)}
+                className="checkbox-brutal"
+              />
+              <label
+                htmlFor="showBaseUrl"
+                className="text-[10px] font-bold uppercase cursor-pointer select-none"
+              >
+                Use Custom Base URL
+              </label>
+            </div>
+          )}
+
+          {(llmProvider === 'ollama' ||
+            ((llmProvider === 'deepseek' || llmProvider === 'glm') && showBaseUrl)) && (
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-wider">
-                Base URL {(llmProvider === 'deepseek' || llmProvider === 'glm') && '(Optional)'}
+                Base URL {!showBaseUrl && llmProvider !== 'ollama' && '(Optional)'}
               </label>
               <input
                 type="text"

@@ -316,6 +316,7 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
   const requestIdRef = useRef<string | null>(null); // Ref to avoid listener race condition
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [deepDiveContent, setDeepDiveContent] = useState('');
 
   const [agentPhase, setAgentPhase] = useState<AgentPhase | 'idle'>('idle');
   const [agentStep, setAgentStep] = useState({ current: 0, max: 5 });
@@ -452,7 +453,11 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
   const handleCopy = async () => {
     if (!content) return;
     try {
-      await navigator.clipboard.writeText(content);
+      let fullContent = content;
+      if (deepDiveContent) {
+        fullContent += '\n\n' + deepDiveContent;
+      }
+      await navigator.clipboard.writeText(fullContent);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -475,6 +480,7 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
             content={content}
             originalContent={context || ''}
             pageUrl={window.location.href}
+            onDeepDiveUpdate={setDeepDiveContent}
           />
         );
       }
@@ -701,6 +707,7 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
                         content={content}
                         originalContent={context || ''}
                         pageUrl={window.location.href}
+                        onDeepDiveUpdate={setDeepDiveContent}
                       />
                     ) : (
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
@@ -964,10 +971,12 @@ function HierarchicalSummaryView({
   content,
   originalContent,
   pageUrl,
+  onDeepDiveUpdate,
 }: {
   content: string;
   originalContent: string;
   pageUrl: string;
+  onDeepDiveUpdate: (val: string) => void;
 }) {
   const [showDeepDive, setShowDeepDive] = useState(false);
   const [ddStatus, setDdStatus] = useState<'idle' | 'loading' | 'streaming' | 'done' | 'error'>(
@@ -976,6 +985,7 @@ function HierarchicalSummaryView({
   const [ddContent, setDdContent] = useState('');
   const [ddError, setDdError] = useState<string | null>(null);
   const [ddCopied, setDdCopied] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   // Parse content manually since we want specific control
   const tldrMatch = content.match(/# Level 1: TL;DR\s*\n> (.*)/);
@@ -1028,7 +1038,9 @@ function HierarchicalSummaryView({
       }
       if (message.type === 'streaming_end') {
         setDdStatus('done');
+        const finalContent = message.content || ddContent;
         if (message.content) setDdContent(message.content); // Final sync
+        onDeepDiveUpdate(finalContent);
         chrome.runtime.onMessage.removeListener(listener);
       }
       if (message.type === 'streaming_error') {
@@ -1039,7 +1051,7 @@ function HierarchicalSummaryView({
     };
 
     chrome.runtime.onMessage.addListener(listener);
-  }, [ddStatus, originalContent, pageUrl, showDeepDive]);
+  }, [ddStatus, originalContent, pageUrl, showDeepDive, ddContent, onDeepDiveUpdate]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -1119,12 +1131,15 @@ function HierarchicalSummaryView({
 
         {showDeepDive && (
           <div
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
             style={{
               marginTop: '12px',
               padding: '12px',
               background: '#F9FAFB',
               borderRadius: '4px',
               border: '1px solid #E5E7EB',
+              position: 'relative',
             }}
           >
             <div
@@ -1137,6 +1152,7 @@ function HierarchicalSummaryView({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
+                position: 'relative',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1145,36 +1161,43 @@ function HierarchicalSummaryView({
                   <span style={{ fontSize: '12px', fontWeight: '400' }}>(Thinking...)</span>
                 )}
               </div>
-              {ddStatus === 'done' && (
-                <button
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(ddContent);
-                      setDdCopied(true);
-                      setTimeout(() => setDdCopied(false), 2000);
-                    } catch {
-                      /* ignore */
-                    }
-                  }}
-                  style={{
-                    padding: '2px 8px',
-                    background: ddCopied ? '#10B981' : '#fff',
-                    border: '1px solid #000',
-                    color: '#000',
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    fontFamily: '"Space Grotesk", sans-serif',
-                    textTransform: 'uppercase',
-                    cursor: 'pointer',
-                    boxShadow: ddCopied ? '0 0 0 0 #000' : '2px 2px 0 0 #000',
-                    transform: ddCopied ? 'translate(1px, 1px)' : 'none',
-                    transition: 'all 0.1s',
-                  }}
-                >
-                  {ddCopied ? 'COPIED' : 'COPY DEEP DIVE'}
-                </button>
-              )}
             </div>
+
+            {ddStatus === 'done' && (isHovered || ddCopied) && (
+              <button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(ddContent);
+                    setDdCopied(true);
+                    setTimeout(() => setDdCopied(false), 2000);
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                style={{
+                  position: 'sticky',
+                  float: 'right',
+                  top: '0px',
+                  marginTop: '-24px',
+                  padding: '4px 10px',
+                  background: ddCopied ? '#10B981' : '#fff',
+                  border: '1px solid #000',
+                  color: '#000',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  fontFamily: '"Space Grotesk", sans-serif',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  boxShadow: ddCopied ? '0 0 0 0 #000' : '2px 2px 0 0 #000',
+                  transform: ddCopied ? 'translate(1px, 1px)' : 'none',
+                  transition: 'all 0.1s',
+                  zIndex: 20,
+                  pointerEvents: 'auto',
+                }}
+              >
+                {ddCopied ? 'COPIED' : 'COPY'}
+              </button>
+            )}
 
             {ddStatus === 'error' ? (
               <div style={{ color: '#DC2626', fontSize: '13px' }}>Error: {ddError}</div>

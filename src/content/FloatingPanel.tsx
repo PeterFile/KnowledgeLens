@@ -180,13 +180,18 @@ const AgentStatusIndicator = ({
   );
 };
 
-function useDrag(initialPos: { x: number; y: number }) {
-  const [position, setPosition] = useState(initialPos);
+function useDrag(
+  position: { x: number; y: number },
+  setPosition: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>
+) {
   const [isDragging, setIsDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      // Only drag if it's the header and not a button
+      if ((e.target as HTMLElement).closest('button')) return;
+
       e.preventDefault();
       setIsDragging(true);
       dragOffset.current = { x: e.clientX - position.x, y: e.clientY - position.y };
@@ -209,43 +214,88 @@ function useDrag(initialPos: { x: number; y: number }) {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
     };
-  }, [isDragging]);
+  }, [isDragging, setPosition]);
 
-  return { position, isDragging, handleMouseDown };
+  return { isDragging, handleMouseDown };
 }
 
-function useResize(initialSize: { width: number; height: number }) {
-  const [size, setSize] = useState(initialSize);
+function useResize(
+  size: { width: number; height: number },
+  setSize: React.Dispatch<React.SetStateAction<{ width: number; height: number }>>,
+  position: { x: number; y: number },
+  setPosition: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>
+) {
   const [isResizing, setIsResizing] = useState(false);
-  const startInfo = useRef({ x: 0, y: 0, width: 0, height: 0 });
+  const resizeInfo = useRef<{
+    direction: string;
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+    startPosX: number;
+    startPosY: number;
+  } | null>(null);
 
   const handleResizeStart = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent, direction: string) => {
       e.preventDefault();
       e.stopPropagation();
       setIsResizing(true);
-      startInfo.current = { x: e.clientX, y: e.clientY, width: size.width, height: size.height };
+      resizeInfo.current = {
+        direction,
+        startX: e.clientX,
+        startY: e.clientY,
+        startWidth: size.width,
+        startHeight: size.height,
+        startPosX: position.x,
+        startPosY: position.y,
+      };
     },
-    [size]
+    [size, position]
   );
 
   useEffect(() => {
-    if (!isResizing) return;
+    if (!isResizing || !resizeInfo.current) return;
+
     const handleMove = (e: MouseEvent) => {
-      setSize({
-        width: Math.max(
-          360,
-          Math.min(700, startInfo.current.width + (e.clientX - startInfo.current.x))
-        ),
-        height: Math.max(
-          280,
-          Math.min(
-            window.innerHeight - 60,
-            startInfo.current.height + (e.clientY - startInfo.current.y)
-          )
-        ),
-      });
+      const { direction, startX, startY, startWidth, startHeight, startPosX, startPosY } =
+        resizeInfo.current!;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      let newWidth = startWidth;
+      let newHeight = startHeight;
+      let newX = startPosX;
+      let newY = startPosY;
+
+      const MIN_WIDTH = 300;
+      const MIN_HEIGHT = 150;
+
+      if (direction.includes('e')) {
+        newWidth = Math.max(MIN_WIDTH, startWidth + dx);
+      }
+      if (direction.includes('w')) {
+        const potentialWidth = startWidth - dx;
+        if (potentialWidth >= MIN_WIDTH) {
+          newWidth = potentialWidth;
+          newX = startPosX + dx;
+        }
+      }
+      if (direction.includes('s')) {
+        newHeight = Math.max(MIN_HEIGHT, startHeight + dy);
+      }
+      if (direction.includes('n')) {
+        const potentialHeight = startHeight - dy;
+        if (potentialHeight >= MIN_HEIGHT) {
+          newHeight = potentialHeight;
+          newY = startPosY + dy;
+        }
+      }
+
+      setSize({ width: newWidth, height: newHeight });
+      setPosition({ x: newX, y: newY });
     };
+
     const handleUp = () => setIsResizing(false);
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
@@ -253,9 +303,9 @@ function useResize(initialSize: { width: number; height: number }) {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
     };
-  }, [isResizing]);
+  }, [isResizing, setPosition, setSize]);
 
-  return { size, isResizing, handleResizeStart };
+  return { isResizing, handleResizeStart };
 }
 
 export function FloatingPanel({ selectedText, context, mode, onClose }: FloatingPanelProps) {
@@ -273,12 +323,14 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
   const [degradedMode, setDegradedMode] = useState(false);
   const [degradedReason, setDegradedReason] = useState<string | undefined>();
 
-  const { position, isDragging, handleMouseDown } = useDrag({
+  const [position, setPosition] = useState({
     x: Math.max(20, window.innerWidth - 460),
     y: Math.max(20, (window.innerHeight - 480) / 2),
   });
+  const [size, setSize] = useState({ width: 420, height: 500 });
 
-  const { size, isResizing, handleResizeStart } = useResize({ width: 420, height: 500 });
+  const { isDragging, handleMouseDown } = useDrag(position, setPosition);
+  const { isResizing, handleResizeStart } = useResize(size, setSize, position, setPosition);
 
   const sendRequest = useCallback(() => {
     setStatus('loading');
@@ -531,30 +583,48 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
             {title}
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 4 }}>
           <button
             onClick={() => setCollapsed(!collapsed)}
+            className="kl-header-btn"
             style={{
               background: 'transparent',
               border: 'none',
               color: '#fff',
               cursor: 'pointer',
-              fontSize: '14px',
+              fontSize: '16px',
               fontWeight: 'bold',
+              width: '32px',
+              height: '32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '4px',
+              transition: 'background 0.2s',
             }}
+            title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? '□' : '_'}
           </button>
           <button
             onClick={onClose}
+            className="kl-header-btn"
             style={{
               background: 'transparent',
               border: 'none',
               color: '#fff',
               cursor: 'pointer',
-              fontSize: '14px',
+              fontSize: '16px',
               fontWeight: 'bold',
+              width: '32px',
+              height: '32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '4px',
+              transition: 'background 0.2s',
             }}
+            title="Close"
           >
             X
           </button>
@@ -722,18 +792,103 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
             </button>
           </div>
 
-          {/* Resize Grip */}
+          {/* Resize Handles */}
+          {/* Edges */}
           <div
-            onMouseDown={handleResizeStart}
+            onMouseDown={(e) => handleResizeStart(e, 'n')}
             style={{
               position: 'absolute',
-              bottom: 2,
-              right: 2,
+              top: -4,
+              left: 4,
+              right: 4,
+              height: 8,
+              cursor: 'n-resize',
+              zIndex: 10,
+            }}
+          />
+          <div
+            onMouseDown={(e) => handleResizeStart(e, 's')}
+            style={{
+              position: 'absolute',
+              bottom: -4,
+              left: 4,
+              right: 4,
+              height: 8,
+              cursor: 's-resize',
+              zIndex: 10,
+            }}
+          />
+          <div
+            onMouseDown={(e) => handleResizeStart(e, 'e')}
+            style={{
+              position: 'absolute',
+              right: -4,
+              top: 4,
+              bottom: 4,
+              width: 8,
+              cursor: 'e-resize',
+              zIndex: 10,
+            }}
+          />
+          <div
+            onMouseDown={(e) => handleResizeStart(e, 'w')}
+            style={{
+              position: 'absolute',
+              left: -4,
+              top: 4,
+              bottom: 4,
+              width: 8,
+              cursor: 'w-resize',
+              zIndex: 10,
+            }}
+          />
+          {/* Corners */}
+          <div
+            onMouseDown={(e) => handleResizeStart(e, 'nw')}
+            style={{
+              position: 'absolute',
+              top: -4,
+              left: -4,
+              width: 12,
+              height: 12,
+              cursor: 'nw-resize',
+              zIndex: 11,
+            }}
+          />
+          <div
+            onMouseDown={(e) => handleResizeStart(e, 'ne')}
+            style={{
+              position: 'absolute',
+              top: -4,
+              right: -4,
+              width: 12,
+              height: 12,
+              cursor: 'ne-resize',
+              zIndex: 11,
+            }}
+          />
+          <div
+            onMouseDown={(e) => handleResizeStart(e, 'sw')}
+            style={{
+              position: 'absolute',
+              bottom: -4,
+              left: -4,
+              width: 12,
+              height: 12,
+              cursor: 'sw-resize',
+              zIndex: 11,
+            }}
+          />
+          <div
+            onMouseDown={(e) => handleResizeStart(e, 'se')}
+            style={{
+              position: 'absolute',
+              bottom: -4,
+              right: -4,
               width: 12,
               height: 12,
               cursor: 'se-resize',
-              background: 'linear-gradient(135deg, transparent 50%, #000 50%)',
-              opacity: 0.5,
+              zIndex: 11,
             }}
           />
         </>
@@ -795,6 +950,9 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
            padding-left: 1.5em;
            margin: 1em 0;
         }
+        .kl-header-btn:hover {
+           background: rgba(0, 0, 0, 0.15) !important;
+        }
       `}</style>
     </div>
   );
@@ -817,6 +975,7 @@ function HierarchicalSummaryView({
   );
   const [ddContent, setDdContent] = useState('');
   const [ddError, setDdError] = useState<string | null>(null);
+  const [ddCopied, setDdCopied] = useState(false);
 
   // Parse content manually since we want specific control
   const tldrMatch = content.match(/# Level 1: TL;DR\s*\n> (.*)/);
@@ -968,7 +1127,7 @@ function HierarchicalSummaryView({
               border: '1px solid #E5E7EB',
             }}
           >
-            <h3
+            <div
               style={{
                 fontSize: '13px',
                 textTransform: 'uppercase',
@@ -977,14 +1136,45 @@ function HierarchicalSummaryView({
                 color: '#4B5563',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
+                justifyContent: 'space-between',
               }}
             >
-              Deep Dive Analysis
-              {ddStatus === 'loading' && (
-                <span style={{ fontSize: '12px', fontWeight: '400' }}>(Thinking...)</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Deep Dive Analysis
+                {ddStatus === 'loading' && (
+                  <span style={{ fontSize: '12px', fontWeight: '400' }}>(Thinking...)</span>
+                )}
+              </div>
+              {ddStatus === 'done' && (
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(ddContent);
+                      setDdCopied(true);
+                      setTimeout(() => setDdCopied(false), 2000);
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                  style={{
+                    padding: '2px 8px',
+                    background: ddCopied ? '#10B981' : '#fff',
+                    border: '1px solid #000',
+                    color: '#000',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    fontFamily: '"Space Grotesk", sans-serif',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    boxShadow: ddCopied ? '0 0 0 0 #000' : '2px 2px 0 0 #000',
+                    transform: ddCopied ? 'translate(1px, 1px)' : 'none',
+                    transition: 'all 0.1s',
+                  }}
+                >
+                  {ddCopied ? 'COPIED' : 'COPY DEEP DIVE'}
+                </button>
               )}
-            </h3>
+            </div>
 
             {ddStatus === 'error' ? (
               <div style={{ color: '#DC2626', fontSize: '13px' }}>Error: {ddError}</div>

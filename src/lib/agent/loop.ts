@@ -202,8 +202,18 @@ export function shouldContinue(trajectory: AgentTrajectory, config: AgentConfig)
 /**
  * Build the system prompt for the ReAct loop.
  */
-function buildSystemPrompt(goal: string, tools: string, reflections: string): string {
+function buildSystemPrompt(
+  goal: string,
+  tools: string,
+  reflections: string,
+  language: string = 'en'
+): string {
+  const langNames = { en: 'English', zh: 'Chinese', ja: 'Japanese' };
+  const targetLang = langNames[language as keyof typeof langNames] || 'English';
+
   return `You are an AI assistant using the ReAct (Reasoning + Acting) pattern.
+  
+IMPORTANT: You MUST respond in ${targetLang}. All your reasoning, thoughts, and synthesis MUST be in ${targetLang}.
 
 <goal>
 ${goal}
@@ -411,7 +421,12 @@ export async function runAgentLoop(
       : '';
 
     // Build prompts
-    const systemPrompt = buildSystemPrompt(goal, toolsPrompt, relevantReflections);
+    const systemPrompt = buildSystemPrompt(
+      goal,
+      toolsPrompt,
+      relevantReflections,
+      config.agentSettings?.language || 'en'
+    );
     const contextStr = serializeContext(workingContext);
     const userPrompt = buildReasoningPrompt(contextStr, lastToolResult);
 

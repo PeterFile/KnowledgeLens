@@ -756,6 +756,8 @@ export const SUMMARY_INVENTORY: PromptTemplate = {
       content: `You are a "Content Librarian". The page provided is not an article but a collection of links, tools, or resources.
 DO NOT try to worry about a narrative summary. instead, create a "Content Inventory".
 
+CRITICAL: Output the inventory DIRECTLY. Do NOT include any preamble, acknowledgment, or meta-commentary like "Here is the inventory" or "I will now analyze". Start immediately with the content.
+
 Output Format:
 **Page Type:** [e.g. Navigation / Resource List / Profile / Tool / Error Page]
 
@@ -802,6 +804,8 @@ export const SUMMARY_HIERARCHICAL: PromptTemplate = {
       name: 'system',
       delimiter: 'xml',
       content: `You are a high-level executive assistant. Create a "Progressive Hierarchical Summary" for the provided content.
+
+CRITICAL: Output the summary DIRECTLY. Do NOT include any preamble, acknowledgment, or meta-commentary like "Here is the summary" or "I will now analyze". Start immediately with the content.
 
 Your output MUST follow this specific markdown structure:
 
@@ -853,6 +857,8 @@ export const HIERARCHICAL_SUMMARY_PROMPT_L3: PromptTemplate = {
 Your task is to provide a comprehensive, detailed analysis of the provided content.
 This is "Level 3" of a progressive summary system. The user has already seen the High-level TL;DR and Executive Brief.
 NOW they want the DETAILS.
+
+CRITICAL: Output the analysis DIRECTLY. Do NOT include any preamble, acknowledgment, or meta-commentary like "Here is the analysis", "I will now analyze", or "好的，以下是...". Start immediately with the first section header.
 
 Goal: Provide 3-5 comprehensive sections that cover the most important aspects of the content in depth.
 - Use Header 3 (###) for section titles.

@@ -4,8 +4,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { StreamingMessage, AgentStatusMessage } from '../types';
+import type { StreamingMessage, AgentStatusMessage, StoredSettings } from '../types';
 import type { AgentPhase } from '../lib/agent/types';
+import { t } from '../lib/i18n';
 
 type PanelStatus = 'loading' | 'streaming' | 'done' | 'error' | 'agent_running';
 
@@ -13,11 +14,12 @@ interface FloatingPanelProps {
   selectedText?: string;
   context?: string;
   mode: 'explain' | 'search' | 'summary';
+  settings?: StoredSettings | null;
   onClose: () => void;
 }
 
 // Tech Loader - Glitch effect style
-const LoadingIndicator = () => (
+const LoadingIndicator = ({ language }: { language: string }) => (
   <div
     style={{
       display: 'flex',
@@ -57,7 +59,7 @@ const LoadingIndicator = () => (
         textTransform: 'uppercase',
       }}
     >
-      Initialising Agent...
+      {t('common.loading', language)}
     </div>
     <style>{`@keyframes pulse { 0%, 100% { opacity: 0.2; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }`}</style>
   </div>
@@ -128,7 +130,7 @@ const AgentStatusIndicator = ({
               textTransform: 'uppercase',
             }}
           >
-            {config.label}
+            {t(`agent.${phase}`, (onCancel as any)?.language || 'en')}
           </span>
           {currentTool && (
             <span
@@ -151,7 +153,7 @@ const AgentStatusIndicator = ({
               fontWeight: 'bold',
             }}
           >
-            [ABORT]
+            [{t('common.cancel', (onCancel as any)?.language || 'en')}]
           </button>
         )}
       </div>
@@ -308,8 +310,15 @@ function useResize(
   return { isResizing, handleResizeStart };
 }
 
-export function FloatingPanel({ selectedText, context, mode, onClose }: FloatingPanelProps) {
+export function FloatingPanel({
+  selectedText,
+  context,
+  mode,
+  settings,
+  onClose,
+}: FloatingPanelProps) {
   const [status, setStatus] = useState<PanelStatus>('loading');
+  const language = settings?.language || 'en';
   const [content, setContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [requestId, setRequestId] = useState<string | null>(null);
@@ -526,7 +535,13 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
   };
 
   const title =
-    mode === 'summary' ? 'PAGE SUMMARY' : mode === 'search' ? 'WEB SEARCH' : 'CONTEXT EXPLAIN';
+    mode === 'summary'
+      ? t('summary.title', language)
+      : mode === 'search'
+        ? t('settings.search_config', language)
+        : t('types.explain', language) === 'types.explain'
+          ? 'CONTEXT EXPLAIN'
+          : t('types.explain', language);
   const headerBg = mode === 'summary' ? '#F59E0B' : '#4F46E5'; // Amber for summary, Indigo for others
   const isInteracting = isDragging || isResizing;
 
@@ -608,7 +623,19 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
               borderRadius: '4px',
               transition: 'background 0.2s',
             }}
-            title={collapsed ? 'Expand' : 'Collapse'}
+            title={
+              collapsed
+                ? language === 'zh'
+                  ? '展开'
+                  : language === 'ja'
+                    ? '展開'
+                    : 'Expand'
+                : language === 'zh'
+                  ? '折叠'
+                  : language === 'ja'
+                    ? '折りたたむ'
+                    : 'Collapse'
+            }
           >
             {collapsed ? '□' : '_'}
           </button>
@@ -630,7 +657,7 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
               borderRadius: '4px',
               transition: 'background 0.2s',
             }}
-            title="Close"
+            title={language === 'zh' ? '关闭' : language === 'ja' ? '閉じる' : 'Close'}
           >
             X
           </button>
@@ -687,7 +714,7 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
               background: '#FAFAFA',
             }}
           >
-            {status === 'loading' && <LoadingIndicator />}
+            {status === 'loading' && <LoadingIndicator language={language} />}
 
             {status === 'agent_running' && (
               <>
@@ -767,7 +794,7 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
                 transition: 'all 0.1s',
               }}
             >
-              {copied ? 'COPIED' : 'COPY'}
+              {copied ? t('common.saved', language) : t('summary.copy', language)}
             </button>
             <button
               onClick={sendRequest}
@@ -795,7 +822,7 @@ export function FloatingPanel({ selectedText, context, mode, onClose }: Floating
                   '2px 2px 0 0 ' + (mode === 'summary' ? '#F59E0B' : '#4F46E5');
               }}
             >
-              REGENERATE
+              {t('summary.regenerate', language)}
             </button>
           </div>
 

@@ -1,4 +1,5 @@
 import { Section } from './Section';
+import { t } from '../../../lib/i18n';
 
 interface AgentConfigProps {
   tokenBudget: number;
@@ -7,6 +8,7 @@ interface AgentConfigProps {
   onTokenBudgetChange: (budget: number) => void;
   onMaxStepsChange: (steps: number) => void;
   onMaxRetriesChange: (retries: number) => void;
+  language: 'en' | 'zh' | 'ja';
 }
 
 export function AgentConfig({
@@ -16,13 +18,16 @@ export function AgentConfig({
   onTokenBudgetChange,
   onMaxStepsChange,
   onMaxRetriesChange,
+  language,
 }: AgentConfigProps) {
   return (
-    <Section title="Agent Parameters">
+    <Section title={t('settings.agent_config', language)}>
       <div className="space-y-5">
         <div className="space-y-2">
           <div className="flex justify-between">
-            <label className="text-[10px] font-bold uppercase tracking-wider">Token Budget</label>
+            <label className="text-[10px] font-bold uppercase tracking-wider">
+              {t('settings.token_budget', language)}
+            </label>
             <span className="text-[10px] font-mono font-bold bg-black text-white px-1">
               {tokenBudget.toLocaleString()}
             </span>
@@ -40,7 +45,9 @@ export function AgentConfig({
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider">Max Steps</label>
+            <label className="text-[10px] font-bold uppercase tracking-wider">
+              {t('settings.max_steps', language)}
+            </label>
             <select
               value={maxSteps}
               onChange={(e) => onMaxStepsChange(Number(e.target.value))}
@@ -54,7 +61,9 @@ export function AgentConfig({
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider">Retries</label>
+            <label className="text-[10px] font-bold uppercase tracking-wider">
+              {t('settings.retries', language)}
+            </label>
             <select
               value={maxRetries}
               onChange={(e) => onMaxRetriesChange(Number(e.target.value))}

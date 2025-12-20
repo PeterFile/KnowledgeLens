@@ -4,6 +4,8 @@ import { saveSettings, clearSettings } from '../../lib/storage';
 import { ModelConfig } from './settings/ModelConfig';
 import { SearchConfig } from './settings/SearchConfig';
 import { AgentConfig } from './settings/AgentConfig';
+import { GeneralConfig } from './settings/GeneralConfig';
+import { t } from '../../lib/i18n';
 import {
   MODEL_OPTIONS,
   DEFAULT_TOKEN_BUDGET,
@@ -28,6 +30,7 @@ interface LocalSettingsState {
   tokenBudget: number;
   maxSteps: number;
   maxRetries: number;
+  language: 'en' | 'zh' | 'ja';
 }
 
 const DEFAULT_STATE: LocalSettingsState = {
@@ -42,6 +45,7 @@ const DEFAULT_STATE: LocalSettingsState = {
   tokenBudget: DEFAULT_TOKEN_BUDGET,
   maxSteps: DEFAULT_MAX_STEPS,
   maxRetries: DEFAULT_MAX_RETRIES,
+  language: 'en',
 };
 
 export function SettingsView({ settings, setSettings }: SettingsViewProps) {
@@ -60,6 +64,7 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
         tokenBudget: settings.agentSettings?.tokenBudget ?? DEFAULT_TOKEN_BUDGET,
         maxSteps: settings.agentSettings?.maxSteps ?? DEFAULT_MAX_STEPS,
         maxRetries: settings.agentSettings?.maxRetries ?? DEFAULT_MAX_RETRIES,
+        language: settings.language ?? 'en',
       };
     }
     return DEFAULT_STATE;
@@ -100,7 +105,9 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
           tokenBudget: localState.tokenBudget,
           maxSteps: localState.maxSteps,
           maxRetries: localState.maxRetries,
+          language: localState.language,
         },
+        language: localState.language,
       };
       await saveSettings(newSettings);
       setSettings(newSettings);
@@ -150,6 +157,7 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
         onApiKeyChange={(val) => updateState({ llmApiKey: val })}
         onBaseUrlChange={(val) => updateState({ llmBaseUrl: val })}
         onShowBaseUrlChange={(val) => updateState({ showBaseUrl: val })}
+        language={localState.language}
       />
 
       <SearchConfig
@@ -159,6 +167,7 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
         onProviderChange={(val) => updateState({ searchProvider: val })}
         onApiKeyChange={(val) => updateState({ searchApiKey: val })}
         onSearchEngineIdChange={(val) => updateState({ searchEngineId: val })}
+        language={localState.language}
       />
 
       <AgentConfig
@@ -168,6 +177,12 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
         onTokenBudgetChange={(val) => updateState({ tokenBudget: val })}
         onMaxStepsChange={(val) => updateState({ maxSteps: val })}
         onMaxRetriesChange={(val) => updateState({ maxRetries: val })}
+        language={localState.language}
+      />
+
+      <GeneralConfig
+        language={localState.language}
+        onLanguageChange={(val) => updateState({ language: val })}
       />
 
       {/* Floating Action Bar */}
@@ -177,14 +192,18 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
           disabled={saveStatus === 'saving'}
           className={`flex-1 btn-brutal ${saveStatus === 'saved' ? 'bg-emerald-500 text-black border-black' : 'bg-black text-white border-black'}`}
         >
-          {saveStatus === 'saving' ? 'SAVING...' : saveStatus === 'saved' ? 'SAVED' : 'SAVE CONFIG'}
+          {saveStatus === 'saving'
+            ? t('common.saving', localState.language)
+            : saveStatus === 'saved'
+              ? t('common.saved', localState.language)
+              : t('common.save', localState.language)}
         </button>
         <button
           onClick={handleClear}
           className="btn-brutal bg-white text-black hover:bg-red-50 hover:text-red-600 hover:border-red-600"
-          title="Reset"
+          title={t('common.reset', localState.language)}
         >
-          RESET
+          {t('common.reset', localState.language)}
         </button>
       </div>
     </div>

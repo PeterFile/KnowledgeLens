@@ -191,6 +191,7 @@ export interface AgentSettings {
   tokenBudget: number; // Default: 100000
   maxSteps: number; // Default: 5
   maxRetries: number; // Default: 3
+  language?: 'en' | 'zh' | 'ja';
 }
 
 // Stored Settings for chrome.storage.local
@@ -198,4 +199,5 @@ export interface StoredSettings {
   llmConfig?: LLMConfig;
   searchConfig?: SearchConfig;
   agentSettings?: AgentSettings;
+  language?: 'en' | 'zh' | 'ja';
 }

@@ -229,7 +229,8 @@ async function handleSummarize(
           tabId
         );
       },
-      request.controller.signal
+      request.controller.signal,
+      settings.language || 'en'
     );
 
     // Send the final response as streaming chunks for UI compatibility
@@ -316,7 +317,8 @@ async function handleDeepDive(
           tabId
         );
       },
-      request.controller.signal
+      request.controller.signal,
+      settings.language || 'en'
     );
 
     sendStreamingMessage(
@@ -420,7 +422,8 @@ async function handleExplain(
           tabId
         );
       },
-      request.controller.signal
+      request.controller.signal,
+      settings.language || 'en'
     );
 
     usedAgent = result.usedAgent;
@@ -523,7 +526,8 @@ async function handleSearchEnhance(
           tabId
         );
       },
-      request.controller.signal
+      request.controller.signal,
+      settings.language || 'en'
     );
 
     sendStreamingMessage(

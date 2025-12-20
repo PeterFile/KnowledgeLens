@@ -12,6 +12,9 @@ export interface AgentConfig {
   maxRetries: number; // Default: 3
   tokenBudget: number; // User-configurable
   llmConfig: LLMConfig;
+  agentSettings?: {
+    language?: 'en' | 'zh' | 'ja';
+  };
 }
 
 export type AgentPhase =

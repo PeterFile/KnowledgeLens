@@ -1,5 +1,6 @@
 import { Section } from './Section';
 import { MODEL_OPTIONS } from './constants';
+import { t } from '../../../lib/i18n';
 
 interface ModelConfigProps {
   provider: 'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'glm' | 'ollama';
@@ -14,6 +15,7 @@ interface ModelConfigProps {
   onApiKeyChange: (apiKey: string) => void;
   onBaseUrlChange: (baseUrl: string) => void;
   onShowBaseUrlChange: (show: boolean) => void;
+  language: 'en' | 'zh' | 'ja';
 }
 
 export function ModelConfig({
@@ -27,13 +29,16 @@ export function ModelConfig({
   onApiKeyChange,
   onBaseUrlChange,
   onShowBaseUrlChange,
+  language,
 }: ModelConfigProps) {
   return (
-    <Section title="AI Model Configuration">
+    <Section title={t('settings.model_config', language)}>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider">Provider</label>
+            <label className="text-[10px] font-bold uppercase tracking-wider">
+              {t('settings.provider', language)}
+            </label>
             <select
               value={provider}
               onChange={(e) =>
@@ -58,7 +63,9 @@ export function ModelConfig({
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider">Model</label>
+            <label className="text-[10px] font-bold uppercase tracking-wider">
+              {t('settings.model', language)}
+            </label>
             {provider === 'ollama' ? (
               <input
                 type="text"
@@ -83,7 +90,9 @@ export function ModelConfig({
           </div>
         </div>
         <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase tracking-wider">API Key</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider">
+            {t('settings.api_key', language)}
+          </label>
           <input
             type="password"
             value={apiKey}
@@ -115,7 +124,8 @@ export function ModelConfig({
           ((provider === 'deepseek' || provider === 'glm') && showBaseUrl)) && (
           <div className="space-y-1">
             <label className="text-[10px] font-bold uppercase tracking-wider">
-              Base URL {!showBaseUrl && provider !== 'ollama' && '(Optional)'}
+              {t('settings.base_url', language)}{' '}
+              {!showBaseUrl && provider !== 'ollama' && '(Optional)'}
             </label>
             <input
               type="text"

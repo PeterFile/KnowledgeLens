@@ -1,4 +1,5 @@
 import { Section } from './Section';
+import { t } from '../../../lib/i18n';
 
 interface SearchConfigProps {
   provider: 'serpapi' | 'google';
@@ -7,6 +8,7 @@ interface SearchConfigProps {
   onProviderChange: (provider: 'serpapi' | 'google') => void;
   onApiKeyChange: (apiKey: string) => void;
   onSearchEngineIdChange: (id: string) => void;
+  language: 'en' | 'zh' | 'ja';
 }
 
 export function SearchConfig({
@@ -16,12 +18,15 @@ export function SearchConfig({
   onProviderChange,
   onApiKeyChange,
   onSearchEngineIdChange,
+  language,
 }: SearchConfigProps) {
   return (
-    <Section title="Search Configuration">
+    <Section title={t('settings.search_config', language)}>
       <div className="space-y-4">
         <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase tracking-wider">Provider</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider">
+            {t('settings.provider', language)}
+          </label>
           <select
             value={provider}
             onChange={(e) => onProviderChange(e.target.value as 'serpapi' | 'google')}
@@ -32,7 +37,9 @@ export function SearchConfig({
           </select>
         </div>
         <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase tracking-wider">API Key</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider">
+            {t('settings.api_key', language)}
+          </label>
           <input
             type="password"
             value={apiKey}
@@ -43,7 +50,9 @@ export function SearchConfig({
         </div>
         {provider === 'google' && (
           <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider">Engine ID (cx)</label>
+            <label className="text-[10px] font-bold uppercase tracking-wider">
+              {t('settings.search_engine_id', language)} (cx)
+            </label>
             <input
               type="text"
               value={searchEngineId}

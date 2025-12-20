@@ -6,6 +6,7 @@ import { TimeoutWarning } from './TimeoutWarning';
 import { ErrorDisplay } from './ErrorDisplay';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { AgentStatusDisplay } from '../../components';
+import { t } from '../../lib/i18n';
 
 export interface SummaryState {
   status:
@@ -136,7 +137,8 @@ export function SummaryView({
       setState({
         status: 'error',
         content: '',
-        error: error instanceof Error ? error.message : 'Failed to summarize page',
+        error:
+          error instanceof Error ? error.message : t('common.error', settings?.language ?? 'en'),
       });
     }
   }, [settings, setState, setTimeoutWarning]);
@@ -180,16 +182,22 @@ export function SummaryView({
             <span className="text-2xl">📄</span>
           </div>
           <div>
-            <h3 className="text-xl font-bold mb-2">Page Summary</h3>
+            <h3 className="text-xl font-bold mb-2">
+              {t('summary.title', settings?.language ?? 'en')}
+            </h3>
             <p className="text-xs text-gray-500 max-w-[200px] mx-auto leading-relaxed uppercase tracking-wide">
-              Extract insights from the current page content.
+              {settings?.language === 'zh'
+                ? '从当前页面内容中提取见解。'
+                : settings?.language === 'ja'
+                  ? '現在のページ内容からインサイトを抽出します。'
+                  : 'Extract insights from the current page content.'}
             </p>
           </div>
           <button
             onClick={handleSummarize}
             className="btn-brutal bg-black text-white hover:bg-gray-800 w-full py-3"
           >
-            START AGENT
+            {t('summary.start_agent', settings?.language ?? 'en')}
           </button>
         </div>
       )}
@@ -242,13 +250,15 @@ export function SummaryView({
           {state.status === 'success' && (
             <div className="flex gap-3">
               <button onClick={handleSummarize} className="flex-1 btn-brutal text-xs">
-                RETRY
+                {t('summary.regenerate', settings?.language ?? 'en')}
               </button>
               <button
                 onClick={handleCopy}
                 className="flex-1 btn-brutal bg-black text-white hover:bg-gray-900 text-xs"
               >
-                {copied ? 'COPIED' : 'COPY'}
+                {copied
+                  ? t('common.saved', settings?.language ?? 'en')
+                  : t('summary.copy', settings?.language ?? 'en')}
               </button>
             </div>
           )}

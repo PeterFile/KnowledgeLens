@@ -9,6 +9,7 @@ import { FloatingBubble } from './FloatingBubble';
 import { FloatingPanel } from './FloatingPanel';
 import { ScreenshotOverlay } from './ScreenshotOverlay';
 import { ProcessingPanel } from './ProcessingPanel';
+import { loadSettings } from '../lib/storage';
 
 console.log('KnowledgeLens content script loaded');
 
@@ -22,7 +23,7 @@ const PROCESSING_PANEL_ID = 'knowledgelens-processing-panel';
 let currentSelection: SelectionData | null = null;
 
 // Track active panels by their unique IDs
-const activePanels = new Map<string, { text: string; mode: 'explain' | 'search' }>();
+const activePanels = new Map<string, { text: string; mode: 'explain' | 'search' | 'summary' }>();
 
 /**
  * Generate a unique panel ID.
@@ -65,14 +66,18 @@ function showPanel(mode: 'explain' | 'search'): string | undefined {
   activePanels.set(panelId, { text: currentSelection.text, mode });
 
   const container = getShadowContainer(panelId);
-  container.render(
-    <FloatingPanel
-      selectedText={currentSelection.text}
-      context={currentSelection.context}
-      mode={mode}
-      onClose={() => hidePanelById(panelId)}
-    />
-  );
+
+  loadSettings().then((settings) => {
+    container.render(
+      <FloatingPanel
+        selectedText={currentSelection?.text}
+        context={currentSelection?.context}
+        mode={mode}
+        settings={settings}
+        onClose={() => hidePanelById(panelId)}
+      />
+    );
+  });
 
   return panelId;
 }
@@ -114,14 +119,19 @@ function handleSearch(): void {
  */
 function handleSummary(payload: { content: string; pageUrl: string }): void {
   const panelId = generatePanelId();
+  activePanels.set(panelId, { text: '', mode: 'summary' });
   const container = getShadowContainer(panelId);
-  container.render(
-    <FloatingPanel
-      context={payload.content}
-      mode="summary"
-      onClose={() => hidePanelById(panelId)}
-    />
-  );
+
+  loadSettings().then((settings) => {
+    container.render(
+      <FloatingPanel
+        context={payload.content}
+        mode="summary"
+        settings={settings}
+        onClose={() => hidePanelById(panelId)}
+      />
+    );
+  });
 }
 
 /**

@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.3](https://github.com/PeterFile/KnowledgeLens/compare/v0.1.2...v0.1.3) (2025-12-23)
+
+
+### Features
+
+* **content:** enhance summary panel features and usability ([#31](https://github.com/PeterFile/KnowledgeLens/issues/31)) ([def4b4d](https://github.com/PeterFile/KnowledgeLens/commit/def4b4df7feb4ef985d7a9451ea0b14d201a899f))
+* **content:** support multiple floating panels on page ([#27](https://github.com/PeterFile/KnowledgeLens/issues/27)) ([6c11ac5](https://github.com/PeterFile/KnowledgeLens/commit/6c11ac54e24735c7865a570ab8be81afb192a9b6))
+* Expand LLM Support (Gemini, DeepSeek, GLM, Ollama) ([#30](https://github.com/PeterFile/KnowledgeLens/issues/30)) ([f9d3902](https://github.com/PeterFile/KnowledgeLens/commit/f9d390259991826fc0865768dad15701518b7f31))
+* implement comprehensive internationalization (EN, ZH, JA) and agent prompt refinements ([#32](https://github.com/PeterFile/KnowledgeLens/issues/32)) ([e40c621](https://github.com/PeterFile/KnowledgeLens/commit/e40c621186ee3243d6b74b725c64bc74586ce850))
+* implement true streaming output for summary ([#26](https://github.com/PeterFile/KnowledgeLens/issues/26)) ([771c9bd](https://github.com/PeterFile/KnowledgeLens/commit/771c9bddf484102cd0f677a57b9aa35577ebc5fb))
+* **summary:** move page summary to floating panel on page ([#29](https://github.com/PeterFile/KnowledgeLens/issues/29)) ([2ceb0f1](https://github.com/PeterFile/KnowledgeLens/commit/2ceb0f1b9b3bbc4179638d04a4e88b4b54644a42))
+
+
+### Bug Fixes
+
+* **repo:** resolve connection error and missing display results ([#25](https://github.com/PeterFile/KnowledgeLens/issues/25)) ([5d8b4a1](https://github.com/PeterFile/KnowledgeLens/commit/5d8b4a1b39e458404a13e8e1a65a948bb5231764))
+
+
+### Documentation
+
+* **repo:** add project documentation and license ([#24](https://github.com/PeterFile/KnowledgeLens/issues/24)) ([2b5aa60](https://github.com/PeterFile/KnowledgeLens/commit/2b5aa60d5912f43598a325895365164d4259e0d0))
+
+
+### Chores
+
+* **repo:** add kiro configuration, specs, and gemini instructions ([#28](https://github.com/PeterFile/KnowledgeLens/issues/28)) ([1def25a](https://github.com/PeterFile/KnowledgeLens/commit/1def25ae3e5336a2d84dbd4b40e5bd71cad97fae))
+
 ### [0.1.2](https://github.com/PeterFile/KnowledgeLens/compare/v0.1.1...v0.1.2) (2025-12-13)
 
 

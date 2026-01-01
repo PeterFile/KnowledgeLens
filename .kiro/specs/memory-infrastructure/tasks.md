@@ -40,7 +40,7 @@ This plan implements the Memory Infrastructure module in phases: dependencies an
     - Implement `getMetadata()` and `setMetadata()`
     - _Requirements: 1.1, 1.2, 1.6_
 
-  - [ ]* 3.2 Write unit tests for storage module
+  - [x] 3.2 Write unit tests for storage module
     - Test database open/close lifecycle
     - Test snapshot save/load round-trip
     - Test metadata operations
@@ -57,7 +57,7 @@ This plan implements the Memory Infrastructure module in phases: dependencies an
     - Implement code block preservation logic
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
 
-  - [ ]* 4.2 Write property tests for chunker
+  - [x] 4.2 Write property tests for chunker
     - **Property 9: Chunk Semantic Boundaries**
     - **Property 10: Chunk Heading Preservation**
     - **Property 11: Chunk Token Bounds**
@@ -83,14 +83,14 @@ This plan implements the Memory Infrastructure module in phases: dependencies an
     - Implement timeout handling (30s)
     - _Requirements: 3.5, 3.6, 3.7_
 
-  - [ ]* 5.3 Write property tests for embedding service
+  - [x] 5.3 Write property tests for embedding service
     - **Property 7: Embedding Performance**
     - **Property 8: Batch Embedding Correctness**
     - **Property 17: Concurrent Embedding Request Isolation**
     - **Property 18: Initialization Request Queuing**
     - **Validates: Requirements 3.5, 3.6, 3.7**
 
-- [ ] 6. Checkpoint - Verify embedding service
+- [x] 6. Checkpoint - Verify embedding service
   - Test embedding computation manually in browser
   - Verify WebGPU/WASM fallback works
   - Ask user if questions arise
@@ -106,7 +106,7 @@ This plan implements the Memory Infrastructure module in phases: dependencies an
     - Implement `toSnapshot()` using binary persistence
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7_
 
-  - [ ]* 7.2 Write property tests for vector store
+  - [x] 7.2 Write property tests for vector store
     - **Property 2: Search Performance**
     - **Property 3: Hybrid Search Correctness**
     - **Property 4: Document Storage Round-Trip**
@@ -126,13 +126,13 @@ This plan implements the Memory Infrastructure module in phases: dependencies an
     - Wire up initialization from IndexedDB snapshot
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
 
-  - [ ]* 8.2 Write property tests for Memory Manager
+  - [x] 8.2 Write property tests for Memory Manager
     - **Property 1: Snapshot Load Performance**
     - **Property 15: Auto-Embedding on Document Add**
     - **Property 16: Singleton Consistency**
     - **Validates: Requirements 1.2, 6.4, 6.5**
 
-  - [ ]* 8.3 Write integration tests
+  - [x] 8.3 Write integration tests
     - Test full flow: addDocument → search → sync → restore
     - Test error recovery scenarios
     - Test concurrent access patterns
@@ -149,7 +149,7 @@ This plan implements the Memory Infrastructure module in phases: dependencies an
     - Update `src/lib/memory/index.ts` to export public API
     - _Requirements: 6.1, 6.2, 6.3_
 
-- [ ] 10. Final checkpoint - Full integration test
+- [x] 10. Final checkpoint - Full integration test
   - Run all tests with `npm test`
   - Verify extension loads correctly with new modules
   - Test memory persistence across extension reload

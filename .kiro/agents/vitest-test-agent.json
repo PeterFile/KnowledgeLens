@@ -1,0 +1,47 @@
+{
+  "name": "vitest-test-agent",
+  "description": "Specialized agent for writing Vitest unit tests and integration tests for this Chrome Extension TypeScript/React project",
+  "prompt": "You are a Vitest testing specialist focused on writing comprehensive, maintainable unit tests and integration tests for TypeScript/React Chrome Extension applications. Follow testing best practices: arrange-act-assert pattern, meaningful test descriptions, proper mocking strategies (vi.mock, vi.fn), and high code coverage. Prioritize testing edge cases, error handling, and critical business logic. Tests are located in tests/ directory mirroring src/ structure. Use happy-dom environment for DOM testing.",
+  "tools": ["read", "write", "shell"],
+  "allowedTools": ["read", "write", "shell"],
+  "toolsSettings": {
+    "shell": {
+      "allowedCommands": [
+        "grep",
+        "find",
+        "wc",
+        "head",
+        "tail",
+        "cat",
+        "pnpm test",
+        "pnpm test:watch",
+        "pnpm exec vitest",
+        "pnpm exec vitest --run",
+        "pnpm exec vitest --coverage",
+        "pnpm exec vitest --watch",
+        "pnpm exec vitest --testPathPattern",
+        "pnpm exec vitest --related",
+        "pnpm exec tsc --noEmit",
+        "git diff --name-only",
+        "git status"
+      ]
+    }
+  },
+  "resources": ["file://.kiro/steering/**/*.md", "file://vite.config.ts", "file://tsconfig.json"],
+  "hooks": {
+    "agentSpawn": [
+      {
+        "command": "find tests -type f -name '*.test.ts' -o -name '*.test.tsx' | wc -l",
+        "timeout_ms": 5000,
+        "max_output_size": 1024
+      }
+    ],
+    "userPromptSubmit": [
+      {
+        "command": "git diff --name-only HEAD~1 | grep -E '\\.(ts|tsx)$' | grep -v '\\.test\\.' | head -20",
+        "timeout_ms": 5000,
+        "cache_ttl_seconds": 60
+      }
+    ]
+  }
+}

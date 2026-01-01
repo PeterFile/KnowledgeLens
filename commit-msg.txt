@@ -1,0 +1,14 @@
+test(lib): add comprehensive tests for memory infrastructure module
+
+Add property-based and unit tests for all memory module components:
+
+- storage.test.ts: IndexedDB operations (snapshot save/load, metadata)
+- chunker.test.ts: HTML chunking with property tests (Properties 9-14)
+- embedding-client.test.ts: Embedding service client (Properties 7, 8, 17, 18)
+- vector-store.test.ts: Orama vector store (Properties 2-6)
+- index.test.ts: MemoryManager integration (Properties 1, 15, 16)
+
+All 60 tests pass, validating correctness properties from design doc.
+Also adds vitest-test-agent.json for Kiro agent configuration.
+
+Requirements: 1.1-1.6, 2.1-2.7, 3.5-3.7, 4.1-4.6, 6.1-6.6

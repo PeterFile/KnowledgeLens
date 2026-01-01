@@ -776,6 +776,7 @@ async function handleGenerateNoteCard(
 
     // Send to offscreen document for note card generation
     const response = await chrome.runtime.sendMessage({
+      target: 'offscreen',
       action: 'generate_note_card',
       data: noteCardData,
     });
@@ -1227,6 +1228,113 @@ async function handleAgentGetStatus(
 }
 
 // ============================================================================
+// Embedding Handlers
+// ============================================================================
+
+const OFFSCREEN_URL = 'src/offscreen/offscreen.html';
+
+async function ensureEmbeddingOffscreen(): Promise<void> {
+  console.log('[Embedding] Checking for existing offscreen document...');
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+    documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)],
+  });
+
+  console.log(
+    '[Embedding] Existing contexts:',
+    existingContexts.length,
+    'URL:',
+    chrome.runtime.getURL(OFFSCREEN_URL)
+  );
+
+  if (existingContexts.length > 0) {
+    console.log('[Embedding] Offscreen document already exists');
+    return;
+  }
+
+  console.log('[Embedding] Creating offscreen document...');
+  try {
+    await chrome.offscreen.createDocument({
+      url: OFFSCREEN_URL,
+      reasons: [chrome.offscreen.Reason.WORKERS],
+      justification: 'Compute text embeddings using WebGPU',
+    });
+    console.log('[Embedding] Offscreen document created successfully');
+  } catch (error) {
+    console.error('[Embedding] Failed to create offscreen document:', error);
+    throw error;
+  }
+}
+
+async function sendToOffscreen(message: unknown): Promise<unknown> {
+  console.log('[Embedding] sendToOffscreen called with:', message);
+
+  // Get the offscreen document's client ID to send targeted message
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+    documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)],
+  });
+
+  console.log('[Embedding] Found offscreen contexts:', contexts.length);
+
+  if (contexts.length === 0) {
+    throw new Error('Offscreen document not found');
+  }
+
+  // Use a unique target identifier to route message to offscreen
+  const fullMessage = {
+    target: 'offscreen',
+    ...(message as object),
+  };
+  console.log('[Embedding] Sending message to offscreen:', fullMessage);
+
+  const response = await chrome.runtime.sendMessage(fullMessage);
+  console.log('[Embedding] Received response from offscreen:', response);
+  return response;
+}
+
+async function handlePreloadEmbedding(
+  sendResponse: (response: ExtensionResponse) => void
+): Promise<void> {
+  console.log('[Embedding] handlePreloadEmbedding called');
+  try {
+    await ensureEmbeddingOffscreen();
+    console.log('[Embedding] Offscreen document ensured, sending preload message...');
+    const response = await sendToOffscreen({ action: 'preload_embedding' });
+    console.log('[Embedding] Preload response:', response);
+    sendResponse({ success: true, data: response, requestId: '' });
+  } catch (error) {
+    console.error('[Embedding] handlePreloadEmbedding error:', error);
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to preload embedding',
+      requestId: '',
+    });
+  }
+}
+
+async function handleComputeEmbedding(
+  payload: { texts: string[]; requestId: string },
+  sendResponse: (response: ExtensionResponse) => void
+): Promise<void> {
+  try {
+    await ensureEmbeddingOffscreen();
+    const response = await sendToOffscreen({
+      action: 'compute_embedding',
+      texts: payload.texts,
+      requestId: payload.requestId,
+    });
+    sendResponse({ success: true, data: response, requestId: payload.requestId });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to compute embedding',
+      requestId: payload.requestId,
+    });
+  }
+}
+
+// ============================================================================
 // Keyboard Shortcut Handler
 // Requirements: 5.1 - Ctrl+Shift+X triggers screenshot overlay
 // ============================================================================
@@ -1307,69 +1415,101 @@ chrome.runtime.onInstalled.addListener((details) => {
  * Uses discriminated unions for compile-time type safety
  * Requirements: 1.1, 2.2, 3.2, 4.3, 10.2, 1.6
  */
-chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
-  const tabId = sender.tab?.id;
+chrome.runtime.onMessage.addListener(
+  (message: ExtensionMessage & { target?: string }, sender, sendResponse) => {
+    console.log('[Background] Received message:', message.action, 'target:', message.target);
 
-  switch (message.action) {
-    case 'summarize_page':
-      handleSummarize(message.payload, sendResponse, tabId);
-      return true; // Keep channel open for async response
-
-    case 'agent_deep_dive':
-      handleDeepDive(message.payload, sendResponse, tabId);
-      return true;
-
-    case 'explain_text':
-      handleExplain(message.payload, sendResponse, tabId);
-      return true;
-
-    case 'search_enhance':
-      handleSearchEnhance(message.payload, sendResponse, tabId);
-      return true;
-
-    case 'cancel_request':
-      handleCancelRequest(message.payload, sendResponse);
-      return false; // Sync response
-
-    case 'capture_screenshot':
-      handleCaptureScreenshot(message.payload, sendResponse);
-      return true; // Keep channel open for async response
-
-    case 'extract_screenshot':
-      handleExtractScreenshot(message.payload, sendResponse, tabId);
-      return true; // Keep channel open for async response
-
-    case 'generate_note_card':
-      handleGenerateNoteCard(message.payload, sendResponse, tabId);
-      return true; // Keep channel open for async response
-
-    case 'agent_execute':
-      handleAgentExecute(message.payload, sendResponse, tabId);
-      return true; // Keep channel open for async response
-
-    case 'agent_cancel':
-      handleAgentCancel(message.payload, sendResponse);
-      return false; // Sync response
-
-    case 'agent_get_status':
-      handleAgentGetStatus(message.payload, sendResponse);
-      return true; // Keep channel open for async response
-
-    case 'trigger_summary_panel':
-      // Handled by content script, but background sees it due to shared type
-      return false;
-
-    default: {
-      const exhaustiveCheck: never = message;
-      void exhaustiveCheck;
-      sendResponse({
-        success: false,
-        error: 'Unknown action',
-        requestId: '',
-      });
+    // Ignore messages targeted to offscreen document
+    if (message.target === 'offscreen') {
+      console.log('[Background] Ignoring message targeted to offscreen');
       return false;
     }
+
+    const tabId = sender.tab?.id;
+
+    switch (message.action) {
+      case 'summarize_page':
+        handleSummarize(message.payload, sendResponse, tabId);
+        return true; // Keep channel open for async response
+
+      case 'agent_deep_dive':
+        handleDeepDive(message.payload, sendResponse, tabId);
+        return true;
+
+      case 'explain_text':
+        handleExplain(message.payload, sendResponse, tabId);
+        return true;
+
+      case 'search_enhance':
+        handleSearchEnhance(message.payload, sendResponse, tabId);
+        return true;
+
+      case 'cancel_request':
+        handleCancelRequest(message.payload, sendResponse);
+        return false; // Sync response
+
+      case 'capture_screenshot':
+        handleCaptureScreenshot(message.payload, sendResponse);
+        return true; // Keep channel open for async response
+
+      case 'extract_screenshot':
+        handleExtractScreenshot(message.payload, sendResponse, tabId);
+        return true; // Keep channel open for async response
+
+      case 'generate_note_card':
+        handleGenerateNoteCard(message.payload, sendResponse, tabId);
+        return true; // Keep channel open for async response
+
+      case 'agent_execute':
+        handleAgentExecute(message.payload, sendResponse, tabId);
+        return true; // Keep channel open for async response
+
+      case 'agent_cancel':
+        handleAgentCancel(message.payload, sendResponse);
+        return false; // Sync response
+
+      case 'agent_get_status':
+        handleAgentGetStatus(message.payload, sendResponse);
+        return true; // Keep channel open for async response
+
+      case 'trigger_summary_panel':
+        // Handled by content script, but background sees it due to shared type
+        return false;
+
+      case 'preload_embedding':
+        handlePreloadEmbedding(sendResponse);
+        return true;
+
+      case 'compute_embedding':
+        handleComputeEmbedding(message.payload, sendResponse);
+        return true;
+
+      default: {
+        const exhaustiveCheck: never = message;
+        void exhaustiveCheck;
+        sendResponse({
+          success: false,
+          error: 'Unknown action',
+          requestId: '',
+        });
+        return false;
+      }
+    }
   }
-});
+);
+
+// Expose test function for debugging in Service Worker console
+// Usage: testEmbedding()
+(globalThis as unknown as { testEmbedding: () => Promise<void> }).testEmbedding = async () => {
+  console.log('[Test] Starting embedding test...');
+  try {
+    await ensureEmbeddingOffscreen();
+    console.log('[Test] Offscreen document ready, sending preload message...');
+    const response = await sendToOffscreen({ action: 'preload_embedding' });
+    console.log('[Test] Preload response:', response);
+  } catch (error) {
+    console.error('[Test] Error:', error);
+  }
+};
 
 export {};

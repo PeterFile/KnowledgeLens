@@ -1,13 +1,15 @@
-// Offscreen document for CPU-intensive image operations
-// Handles image cropping and note card generation
-// Requirements: 5.3, 7.1, 7.2, 7.3
+// Offscreen document for CPU-intensive operations
+// Handles image cropping, note card generation, and embedding computation
+// Requirements: 3.1, 5.3, 7.1, 7.2, 7.3
 
 import type { ScreenshotRegion } from '../types';
 import { generateNoteCard, type NoteCardData } from '../lib/notecard';
+import {
+  handleEmbeddingRequest,
+  ensureInitialized,
+  type EmbeddingRequest,
+} from './embedding';
 
-/**
- * Message types for offscreen document communication
- */
 interface CropImageMessage {
   action: 'crop_image';
   imageDataUrl: string;
@@ -19,45 +21,28 @@ interface GenerateNoteCardMessage {
   data: NoteCardData;
 }
 
-interface CropImageResponse {
-  success: true;
-  croppedImageBase64: string;
+interface PreloadEmbeddingMessage {
+  action: 'preload_embedding';
 }
 
-interface NoteCardResponse {
-  success: true;
-  imageDataUrl: string;
-  width: number;
-  height: number;
-}
+type OffscreenMessage =
+  | CropImageMessage
+  | GenerateNoteCardMessage
+  | EmbeddingRequest
+  | PreloadEmbeddingMessage;
 
-interface ErrorResponse {
-  success: false;
-  error: string;
-}
-
-type OffscreenMessage = CropImageMessage | GenerateNoteCardMessage;
-type OffscreenResponse = CropImageResponse | NoteCardResponse | ErrorResponse;
-
-/**
- * Crop an image using Canvas API
- * Takes a full screenshot and extracts the specified region
- */
 function cropImage(imageDataUrl: string, region: ScreenshotRegion): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
 
     img.onload = () => {
       try {
-        // Account for device pixel ratio in the captured image
-        // Default to 1 if not provided (fallback for edge cases)
         const dpr = region.devicePixelRatio || 1;
         const sourceX = Math.round(region.x * dpr);
         const sourceY = Math.round(region.y * dpr);
         const sourceWidth = Math.round(region.width * dpr);
         const sourceHeight = Math.round(region.height * dpr);
 
-        // Create canvas with the cropped dimensions
         const canvas = document.createElement('canvas');
         canvas.width = sourceWidth;
         canvas.height = sourceHeight;
@@ -68,22 +53,19 @@ function cropImage(imageDataUrl: string, region: ScreenshotRegion): Promise<stri
           return;
         }
 
-        // Draw the cropped region
         ctx.drawImage(
           img,
           sourceX,
           sourceY,
           sourceWidth,
-          sourceHeight, // Source rectangle
+          sourceHeight,
           0,
           0,
           sourceWidth,
-          sourceHeight // Destination rectangle
+          sourceHeight
         );
 
-        // Convert to base64 PNG
         const croppedDataUrl = canvas.toDataURL('image/png');
-        // Remove the data URL prefix to get just the base64 string
         const base64 = croppedDataUrl.replace(/^data:image\/png;base64,/, '');
         resolve(base64);
       } catch (error) {
@@ -91,62 +73,63 @@ function cropImage(imageDataUrl: string, region: ScreenshotRegion): Promise<stri
       }
     };
 
-    img.onerror = () => {
-      reject(new Error('Failed to load image for cropping'));
-    };
-
+    img.onerror = () => reject(new Error('Failed to load image for cropping'));
     img.src = imageDataUrl;
   });
 }
 
-/**
- * Handle messages from the service worker
- * Only accepts messages from the extension itself for security
- */
-chrome.runtime.onMessage.addListener(
-  (message: OffscreenMessage, sender, sendResponse: (response: OffscreenResponse) => void) => {
-    // Security check: only accept messages from our extension
-    if (sender.id !== chrome.runtime.id) {
-      return false;
-    }
+chrome.runtime.onMessage.addListener((message: OffscreenMessage, sender, sendResponse) => {
+  if (sender.id !== chrome.runtime.id) return false;
 
-    if (message.action === 'crop_image') {
-      cropImage(message.imageDataUrl, message.region)
-        .then((croppedImageBase64) => {
-          sendResponse({ success: true, croppedImageBase64 });
+  if (message.action === 'crop_image') {
+    cropImage(message.imageDataUrl, message.region)
+      .then((croppedImageBase64) => sendResponse({ success: true, croppedImageBase64 }))
+      .catch((error) =>
+        sendResponse({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
         })
-        .catch((error) => {
-          sendResponse({
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          });
-        });
-
-      return true;
-    }
-
-    if (message.action === 'generate_note_card') {
-      generateNoteCard(message.data)
-        .then((noteCard) => {
-          sendResponse({
-            success: true,
-            imageDataUrl: noteCard.imageDataUrl,
-            width: noteCard.width,
-            height: noteCard.height,
-          });
-        })
-        .catch((error) => {
-          sendResponse({
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          });
-        });
-
-      return true;
-    }
-
-    return false;
+      );
+    return true;
   }
-);
+
+  if (message.action === 'generate_note_card') {
+    generateNoteCard(message.data)
+      .then((noteCard) =>
+        sendResponse({
+          success: true,
+          imageDataUrl: noteCard.imageDataUrl,
+          width: noteCard.width,
+          height: noteCard.height,
+        })
+      )
+      .catch((error) =>
+        sendResponse({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
+      );
+    return true;
+  }
+
+  if (message.action === 'compute_embedding') {
+    handleEmbeddingRequest(message).then(sendResponse);
+    return true;
+  }
+
+  if (message.action === 'preload_embedding') {
+    ensureInitialized()
+      .then(() => sendResponse({ success: true }))
+      .catch((error) =>
+        sendResponse({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
+      );
+    return true;
+  }
+
+  return false;
+});
 
 console.log('KnowledgeLens offscreen document loaded');

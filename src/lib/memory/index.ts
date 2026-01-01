@@ -1,7 +1,13 @@
 // Memory Manager - unified interface for memory operations
 // Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6
 
-import { saveSnapshot, loadLatestSnapshot, deleteOldSnapshots, setMetadata, getMetadata } from './storage';
+import {
+  saveSnapshot,
+  loadLatestSnapshot,
+  deleteOldSnapshots,
+  setMetadata,
+  getMetadata,
+} from './storage';
 import { createVectorStore, restoreFromSnapshot, type VectorStore } from './vector-store';
 import { chunkHtmlContent } from './chunker';
 import { computeEmbedding, computeEmbeddings, isReady, preload } from './embedding-client';

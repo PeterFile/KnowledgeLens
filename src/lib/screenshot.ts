@@ -54,6 +54,7 @@ export async function captureAndCropScreenshot(
   try {
     // Send to offscreen document for cropping
     const response = await chrome.runtime.sendMessage({
+      target: 'offscreen',
       action: 'crop_image',
       imageDataUrl: fullScreenshot,
       region,

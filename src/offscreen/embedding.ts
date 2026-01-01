@@ -1,12 +1,129 @@
 // Embedding service for Offscreen Document
 // Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7
+// Uses sandbox iframe for embedding computation to bypass CSP restrictions
 
-import { pipeline, type FeatureExtractionPipeline } from '@huggingface/transformers';
+let sandboxIframe: HTMLIFrameElement | null = null;
+let sandboxReady = false;
+const pendingRequests = new Map<
+  string,
+  {
+    resolve: (value: unknown) => void;
+    reject: (error: Error) => void;
+  }
+>();
 
-const MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
+function ensureSandbox(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (sandboxReady && sandboxIframe) {
+      resolve();
+      return;
+    }
 
-let embeddingPipeline: FeatureExtractionPipeline | null = null;
-let initPromise: Promise<void> | null = null;
+    if (sandboxIframe) {
+      // Already loading
+      const checkReady = setInterval(() => {
+        if (sandboxReady) {
+          clearInterval(checkReady);
+          resolve();
+        }
+      }, 100);
+      return;
+    }
+
+    console.log('[Embedding] Creating sandbox iframe...');
+    sandboxIframe = document.createElement('iframe');
+    sandboxIframe.src = chrome.runtime.getURL('src/sandbox/sandbox.html');
+    sandboxIframe.style.display = 'none';
+    document.body.appendChild(sandboxIframe);
+
+    sandboxIframe.onload = () => {
+      console.log('[Embedding] Sandbox iframe loaded');
+      sandboxReady = true;
+      resolve();
+    };
+
+    sandboxIframe.onerror = () => {
+      reject(new Error('Failed to load sandbox iframe'));
+    };
+  });
+}
+
+// Listen for messages from sandbox
+window.addEventListener('message', (event) => {
+  const { action, requestId, success, embeddings, error } = event.data;
+
+  if (action === 'preload_response' || action === 'compute_response') {
+    const pending = pendingRequests.get(requestId);
+    if (pending) {
+      pendingRequests.delete(requestId);
+      if (success) {
+        pending.resolve(embeddings || true);
+      } else {
+        pending.reject(new Error(error || 'Unknown error'));
+      }
+    }
+  }
+});
+
+function generateRequestId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export async function ensureInitialized(): Promise<void> {
+  await ensureSandbox();
+
+  const requestId = generateRequestId();
+
+  return new Promise((resolve, reject) => {
+    pendingRequests.set(requestId, {
+      resolve: () => resolve(),
+      reject,
+    });
+
+    sandboxIframe?.contentWindow?.postMessage(
+      {
+        action: 'preload',
+        requestId,
+      },
+      '*'
+    );
+
+    // Timeout after 60 seconds for model loading
+    setTimeout(() => {
+      if (pendingRequests.has(requestId)) {
+        pendingRequests.delete(requestId);
+        reject(new Error('Preload timeout'));
+      }
+    }, 60000);
+  });
+}
+
+export async function computeEmbeddings(texts: string[]): Promise<number[][]> {
+  await ensureSandbox();
+
+  const requestId = generateRequestId();
+
+  return new Promise((resolve, reject) => {
+    pendingRequests.set(requestId, { resolve: resolve as (value: unknown) => void, reject });
+
+    sandboxIframe?.contentWindow?.postMessage(
+      {
+        action: 'compute',
+        texts,
+        requestId,
+      },
+      '*'
+    );
+
+    // Timeout after 30 seconds
+    setTimeout(() => {
+      if (pendingRequests.has(requestId)) {
+        pendingRequests.delete(requestId);
+        reject(new Error('Compute timeout'));
+      }
+    }, 30000);
+  });
+}
 
 export interface EmbeddingRequest {
   action: 'compute_embedding';
@@ -26,53 +143,6 @@ export interface EmbeddingErrorResponse {
   success: false;
   requestId: string;
   error: string;
-}
-
-async function initializeModel(): Promise<void> {
-  if (embeddingPipeline) return;
-
-  console.log('[Embedding] Initializing model...');
-
-  try {
-    // @ts-expect-error - transformers.js types are complex
-    embeddingPipeline = await pipeline('feature-extraction', MODEL_ID, {
-      dtype: 'q8',
-      device: 'webgpu',
-    });
-    console.log('[Embedding] Model loaded with WebGPU');
-  } catch (error) {
-    console.warn('[Embedding] WebGPU failed, falling back to WASM:', error);
-    embeddingPipeline = await pipeline('feature-extraction', MODEL_ID, {
-      dtype: 'q8',
-    });
-    console.log('[Embedding] Model loaded with WASM');
-  }
-}
-
-export async function ensureInitialized(): Promise<void> {
-  if (embeddingPipeline) return;
-  if (!initPromise) {
-    initPromise = initializeModel();
-  }
-  await initPromise;
-}
-
-export async function computeEmbeddings(texts: string[]): Promise<number[][]> {
-  await ensureInitialized();
-  if (!embeddingPipeline) throw new Error('Model not initialized');
-
-  const results: number[][] = [];
-
-  for (const text of texts) {
-    const output = await embeddingPipeline(text, {
-      pooling: 'mean',
-      normalize: true,
-    });
-    // output.data is Float32Array, convert to number[]
-    results.push(Array.from(output.data as Float32Array));
-  }
-
-  return results;
 }
 
 export async function handleEmbeddingRequest(

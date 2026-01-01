@@ -22,3 +22,6 @@ Thumbs.db
 *.log
 npm-debug.log*
 .vscode/
+
+# Private Documentation
+private_docs/

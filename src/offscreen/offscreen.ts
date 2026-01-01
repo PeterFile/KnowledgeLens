@@ -4,11 +4,7 @@
 
 import type { ScreenshotRegion } from '../types';
 import { generateNoteCard, type NoteCardData } from '../lib/notecard';
-import {
-  handleEmbeddingRequest,
-  ensureInitialized,
-  type EmbeddingRequest,
-} from './embedding';
+import { handleEmbeddingRequest, ensureInitialized, type EmbeddingRequest } from './embedding';
 
 interface CropImageMessage {
   action: 'crop_image';
@@ -78,58 +74,91 @@ function cropImage(imageDataUrl: string, region: ScreenshotRegion): Promise<stri
   });
 }
 
-chrome.runtime.onMessage.addListener((message: OffscreenMessage, sender, sendResponse) => {
-  if (sender.id !== chrome.runtime.id) return false;
+chrome.runtime.onMessage.addListener(
+  (message: OffscreenMessage & { target?: string }, sender, sendResponse) => {
+    console.log('[Offscreen] Received message:', message, 'from:', sender.id);
 
-  if (message.action === 'crop_image') {
-    cropImage(message.imageDataUrl, message.region)
-      .then((croppedImageBase64) => sendResponse({ success: true, croppedImageBase64 }))
-      .catch((error) =>
-        sendResponse({
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
+    // Only handle messages targeted to offscreen document
+    // This prevents background script from intercepting its own messages
+    if (message.target !== 'offscreen') {
+      console.log('[Offscreen] Ignoring message - target is not offscreen:', message.target);
+      return false;
+    }
+    if (sender.id !== chrome.runtime.id) {
+      console.log('[Offscreen] Ignoring message - sender is not extension:', sender.id);
+      return false;
+    }
+
+    console.log('[Offscreen] Processing message with action:', message.action);
+
+    if (message.action === 'crop_image') {
+      console.log('[Offscreen] Handling crop_image');
+      cropImage(message.imageDataUrl, message.region)
+        .then((croppedImageBase64) => {
+          console.log('[Offscreen] crop_image success');
+          sendResponse({ success: true, croppedImageBase64 });
         })
-      );
-    return true;
-  }
+        .catch((error) => {
+          console.error('[Offscreen] crop_image error:', error);
+          sendResponse({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        });
+      return true;
+    }
 
-  if (message.action === 'generate_note_card') {
-    generateNoteCard(message.data)
-      .then((noteCard) =>
-        sendResponse({
-          success: true,
-          imageDataUrl: noteCard.imageDataUrl,
-          width: noteCard.width,
-          height: noteCard.height,
+    if (message.action === 'generate_note_card') {
+      console.log('[Offscreen] Handling generate_note_card');
+      generateNoteCard(message.data)
+        .then((noteCard) => {
+          console.log('[Offscreen] generate_note_card success');
+          sendResponse({
+            success: true,
+            imageDataUrl: noteCard.imageDataUrl,
+            width: noteCard.width,
+            height: noteCard.height,
+          });
         })
-      )
-      .catch((error) =>
-        sendResponse({
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
+        .catch((error) => {
+          console.error('[Offscreen] generate_note_card error:', error);
+          sendResponse({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        });
+      return true;
+    }
+
+    if (message.action === 'compute_embedding') {
+      console.log('[Offscreen] Handling compute_embedding');
+      handleEmbeddingRequest(message).then((response) => {
+        console.log('[Offscreen] compute_embedding response:', response);
+        sendResponse(response);
+      });
+      return true;
+    }
+
+    if (message.action === 'preload_embedding') {
+      console.log('[Offscreen] Handling preload_embedding');
+      ensureInitialized()
+        .then(() => {
+          console.log('[Offscreen] preload_embedding success');
+          sendResponse({ success: true });
         })
-      );
-    return true;
-  }
+        .catch((error) => {
+          console.error('[Offscreen] preload_embedding error:', error);
+          sendResponse({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        });
+      return true;
+    }
 
-  if (message.action === 'compute_embedding') {
-    handleEmbeddingRequest(message).then(sendResponse);
-    return true;
+    console.log('[Offscreen] Unknown action:', (message as { action?: string }).action);
+    return false;
   }
-
-  if (message.action === 'preload_embedding') {
-    ensureInitialized()
-      .then(() => sendResponse({ success: true }))
-      .catch((error) =>
-        sendResponse({
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        })
-      );
-    return true;
-  }
-
-  return false;
-});
+);
 
 console.log('KnowledgeLens offscreen document loaded');

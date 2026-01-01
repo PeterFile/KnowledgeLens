@@ -25,13 +25,16 @@
 
 ```bash
 # Development - starts Vite dev server with HMR
-npm run dev
+pnpm dev
 
 # Production build - outputs to dist/
-npm run build
+pnpm build
 
 # Preview production build
-npm run preview
+pnpm preview
+
+# Install dependencies
+pnpm install
 ```
 
 ## Build Output

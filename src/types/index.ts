@@ -55,7 +55,14 @@ export type ExtensionMessage =
   | { action: 'agent_execute'; payload: AgentExecutePayload }
   | { action: 'agent_cancel'; payload: AgentCancelPayload }
   | { action: 'agent_get_status'; payload: AgentGetStatusPayload }
-  | { action: 'agent_deep_dive'; payload: DeepDivePayload };
+  | { action: 'agent_deep_dive'; payload: DeepDivePayload }
+  | { action: 'preload_embedding' }
+  | { action: 'compute_embedding'; payload: EmbeddingPayload };
+
+export interface EmbeddingPayload {
+  texts: string[];
+  requestId: string;
+}
 
 export interface SummarizePayload {
   content: string;

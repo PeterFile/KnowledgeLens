@@ -1227,6 +1227,64 @@ async function handleAgentGetStatus(
 }
 
 // ============================================================================
+// Embedding Handlers
+// ============================================================================
+
+const OFFSCREEN_URL = 'src/offscreen/offscreen.html';
+
+async function ensureEmbeddingOffscreen(): Promise<void> {
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+    documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)],
+  });
+
+  if (existingContexts.length > 0) return;
+
+  await chrome.offscreen.createDocument({
+    url: OFFSCREEN_URL,
+    reasons: [chrome.offscreen.Reason.WORKERS],
+    justification: 'Compute text embeddings using WebGPU',
+  });
+}
+
+async function handlePreloadEmbedding(
+  sendResponse: (response: ExtensionResponse) => void
+): Promise<void> {
+  try {
+    await ensureEmbeddingOffscreen();
+    const response = await chrome.runtime.sendMessage({ action: 'preload_embedding' });
+    sendResponse({ success: true, data: response, requestId: '' });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to preload embedding',
+      requestId: '',
+    });
+  }
+}
+
+async function handleComputeEmbedding(
+  payload: { texts: string[]; requestId: string },
+  sendResponse: (response: ExtensionResponse) => void
+): Promise<void> {
+  try {
+    await ensureEmbeddingOffscreen();
+    const response = await chrome.runtime.sendMessage({
+      action: 'compute_embedding',
+      texts: payload.texts,
+      requestId: payload.requestId,
+    });
+    sendResponse({ success: true, data: response, requestId: payload.requestId });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to compute embedding',
+      requestId: payload.requestId,
+    });
+  }
+}
+
+// ============================================================================
 // Keyboard Shortcut Handler
 // Requirements: 5.1 - Ctrl+Shift+X triggers screenshot overlay
 // ============================================================================
@@ -1358,6 +1416,14 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
     case 'trigger_summary_panel':
       // Handled by content script, but background sees it due to shared type
       return false;
+
+    case 'preload_embedding':
+      handlePreloadEmbedding(sendResponse);
+      return true;
+
+    case 'compute_embedding':
+      handleComputeEmbedding(message.payload, sendResponse);
+      return true;
 
     default: {
       const exhaustiveCheck: never = message;

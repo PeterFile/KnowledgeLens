@@ -1,7 +1,8 @@
 // Core types for the Agent Architecture
-// Requirements: 1.1, 2.1, 2.2, 7.1
+// Requirements: 1.1, 2.1, 2.2, 2.5, 7.1
 
 import type { LLMConfig, SearchResult } from '../../types';
+import type { RAGConfig } from './rag-context';
 
 // ============================================================================
 // Agent Configuration & Status
@@ -15,6 +16,8 @@ export interface AgentConfig {
   agentSettings?: {
     language?: 'en' | 'zh' | 'ja';
   };
+  ragConfig?: RAGConfig; // RAG pipeline configuration
+  enableAutoIndex?: boolean; // Default: true - auto-index pages during analysis
 }
 
 export type AgentPhase =

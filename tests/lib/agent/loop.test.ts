@@ -1075,3 +1075,319 @@ describe('Property 17: Status Update Emission', () => {
     );
   });
 });
+
+// ============================================================================
+// RAG Integration Tests
+// Requirements: 2.2, 2.3, 2.4
+// ============================================================================
+
+// Mock the memory module
+vi.mock('../../../src/lib/memory', () => ({
+  getMemoryManager: vi.fn(),
+}));
+
+// Mock the rag-context module
+vi.mock('../../../src/lib/agent/rag-context', () => ({
+  buildRAGContext: vi.fn(),
+  buildRAGContextMessage: vi.fn(),
+  calculateTokenBudgets: vi.fn(),
+  createRAGConfig: vi.fn(),
+}));
+
+// Mock the auto-indexer module
+vi.mock('../../../src/lib/agent/auto-indexer', () => ({
+  indexPageAsync: vi.fn(),
+}));
+
+import { getMemoryManager } from '../../../src/lib/memory';
+import {
+  buildRAGContext,
+  buildRAGContextMessage,
+  calculateTokenBudgets,
+} from '../../../src/lib/agent/rag-context';
+import { indexPageAsync } from '../../../src/lib/agent/auto-indexer';
+import { getMemoryManagerSafe } from '../../../src/lib/agent/loop';
+
+const mockGetMemoryManager = vi.mocked(getMemoryManager);
+const mockBuildRAGContext = vi.mocked(buildRAGContext);
+const mockBuildRAGContextMessage = vi.mocked(buildRAGContextMessage);
+const mockCalculateTokenBudgets = vi.mocked(calculateTokenBudgets);
+const mockIndexPageAsync = vi.mocked(indexPageAsync);
+
+describe('RAG Integration', () => {
+  beforeEach(() => {
+    clearToolRegistry();
+    registerTool(testToolSchema, testToolHandler);
+    mockCallLLM.mockReset();
+    mockGetMemoryManager.mockReset();
+    mockBuildRAGContext.mockReset();
+    mockBuildRAGContextMessage.mockReset();
+    mockCalculateTokenBudgets.mockReset();
+    mockIndexPageAsync.mockReset();
+  });
+
+  afterEach(() => {
+    clearToolRegistry();
+  });
+
+  describe('getMemoryManagerSafe', () => {
+    it('returns MemoryManager when available', async () => {
+      const mockManager = {
+        getStats: () => ({
+          documentCount: 10,
+          indexSizeBytes: 1000,
+          lastSyncTime: Date.now(),
+          embeddingModelLoaded: true,
+        }),
+      };
+      mockGetMemoryManager.mockResolvedValue(mockManager as any);
+
+      const result = await getMemoryManagerSafe();
+
+      expect(result).toBe(mockManager);
+    });
+
+    it('returns null when MemoryManager initialization fails', async () => {
+      mockGetMemoryManager.mockRejectedValue(new Error('Init failed'));
+
+      const result = await getMemoryManagerSafe();
+
+      expect(result).toBeNull();
+    });
+
+    it('logs warning when MemoryManager unavailable', async () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      mockGetMemoryManager.mockRejectedValue(new Error('Init failed'));
+
+      await getMemoryManagerSafe();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('MemoryManager unavailable'),
+        expect.any(Error)
+      );
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('RAG context injection', () => {
+    it('injects RAG context when enabled and MemoryManager ready', async () => {
+      // Setup mocks
+      const mockManager = {
+        getStats: () => ({
+          documentCount: 10,
+          indexSizeBytes: 1000,
+          lastSyncTime: Date.now(),
+          embeddingModelLoaded: true,
+        }),
+      };
+      mockGetMemoryManager.mockResolvedValue(mockManager as any);
+
+      mockCalculateTokenBudgets.mockReturnValue({
+        totalAvailable: 10000,
+        preferenceBudget: 500,
+        knowledgeBudget: 2000,
+        remaining: 7500,
+      });
+
+      mockBuildRAGContext.mockResolvedValue({
+        userProfile: 'User is a software engineer',
+        relatedKnowledge: '<source>Some knowledge</source>',
+        summary: 'Showing 1 of 1 sources',
+        totalTokens: 100,
+      });
+
+      mockBuildRAGContextMessage.mockReturnValue({
+        role: 'assistant',
+        content: '[REFERENCE DATA]\n<knowledge_context>...</knowledge_context>',
+      });
+
+      mockCallLLM.mockImplementation(async (messages, _config, onToken) => {
+        // Verify RAG context message is included
+        const hasRAGContext = messages.some(
+          (m: any) => m.role === 'assistant' && m.content.includes('REFERENCE DATA')
+        );
+        expect(hasRAGContext).toBe(true);
+
+        const response = '<synthesis>Answer based on context.</synthesis>';
+        onToken(response);
+        return { content: response, usage: { promptTokens: 100, completionTokens: 50 } };
+      });
+
+      const context = createContext('test goal', 128000);
+      const memory = createEpisodicMemory('test-session');
+      const config = createTestConfig({
+        ragConfig: {
+          topK: 5,
+          similarityThreshold: 0.3,
+          knowledgeBudget: 2000,
+          preferenceBudget: 500,
+          searchMode: 'hybrid',
+        },
+      });
+
+      await runAgentLoop('test goal', context, memory, config, () => {});
+
+      expect(mockBuildRAGContext).toHaveBeenCalled();
+      expect(mockBuildRAGContextMessage).toHaveBeenCalled();
+    });
+
+    it('skips RAG context when ragConfig not provided', async () => {
+      mockCallLLM.mockImplementation(async (_messages, _config, onToken) => {
+        const response = '<synthesis>Answer without RAG.</synthesis>';
+        onToken(response);
+        return { content: response, usage: { promptTokens: 100, completionTokens: 50 } };
+      });
+
+      const context = createContext('test goal', 128000);
+      const memory = createEpisodicMemory('test-session');
+      const config = createTestConfig(); // No ragConfig
+
+      await runAgentLoop('test goal', context, memory, config, () => {});
+
+      expect(mockBuildRAGContext).not.toHaveBeenCalled();
+    });
+
+    it('skips RAG context when embedding model not loaded', async () => {
+      const mockManager = {
+        getStats: () => ({
+          documentCount: 10,
+          indexSizeBytes: 1000,
+          lastSyncTime: Date.now(),
+          embeddingModelLoaded: false, // Not ready
+        }),
+      };
+      mockGetMemoryManager.mockResolvedValue(mockManager as any);
+
+      mockCallLLM.mockImplementation(async (_messages, _config, onToken) => {
+        const response = '<synthesis>Answer without RAG.</synthesis>';
+        onToken(response);
+        return { content: response, usage: { promptTokens: 100, completionTokens: 50 } };
+      });
+
+      const context = createContext('test goal', 128000);
+      const memory = createEpisodicMemory('test-session');
+      const config = createTestConfig({
+        ragConfig: {
+          topK: 5,
+          similarityThreshold: 0.3,
+          knowledgeBudget: 2000,
+          preferenceBudget: 500,
+          searchMode: 'hybrid',
+        },
+      });
+
+      await runAgentLoop('test goal', context, memory, config, () => {});
+
+      expect(mockBuildRAGContext).not.toHaveBeenCalled();
+    });
+
+    it('continues without RAG when MemoryManager fails', async () => {
+      mockGetMemoryManager.mockRejectedValue(new Error('Init failed'));
+
+      mockCallLLM.mockImplementation(async (_messages, _config, onToken) => {
+        const response = '<synthesis>Answer without RAG.</synthesis>';
+        onToken(response);
+        return { content: response, usage: { promptTokens: 100, completionTokens: 50 } };
+      });
+
+      const context = createContext('test goal', 128000);
+      const memory = createEpisodicMemory('test-session');
+      const config = createTestConfig({
+        ragConfig: {
+          topK: 5,
+          similarityThreshold: 0.3,
+          knowledgeBudget: 2000,
+          preferenceBudget: 500,
+          searchMode: 'hybrid',
+        },
+      });
+
+      // Should not throw
+      const result = await runAgentLoop('test goal', context, memory, config, () => {});
+
+      expect(result.trajectory.status).toBe('completed');
+    });
+  });
+
+  describe('Auto-indexing integration', () => {
+    it('triggers auto-indexing when pageContent provided', async () => {
+      mockCallLLM.mockImplementation(async (_messages, _config, onToken) => {
+        const response = '<synthesis>Done.</synthesis>';
+        onToken(response);
+        return { content: response, usage: { promptTokens: 100, completionTokens: 50 } };
+      });
+
+      const context = createContext('test goal', 128000);
+      const memory = createEpisodicMemory('test-session');
+      const config = createTestConfig();
+      const pageContent = {
+        content: '<html><body>Test content</body></html>',
+        sourceUrl: 'https://example.com/page',
+        title: 'Test Page',
+      };
+
+      await runAgentLoop(
+        'test goal',
+        context,
+        memory,
+        config,
+        () => {},
+        undefined,
+        undefined,
+        pageContent
+      );
+
+      expect(mockIndexPageAsync).toHaveBeenCalledWith(
+        pageContent.content,
+        pageContent.sourceUrl,
+        pageContent.title
+      );
+    });
+
+    it('skips auto-indexing when enableAutoIndex is false', async () => {
+      mockCallLLM.mockImplementation(async (_messages, _config, onToken) => {
+        const response = '<synthesis>Done.</synthesis>';
+        onToken(response);
+        return { content: response, usage: { promptTokens: 100, completionTokens: 50 } };
+      });
+
+      const context = createContext('test goal', 128000);
+      const memory = createEpisodicMemory('test-session');
+      const config = createTestConfig({ enableAutoIndex: false });
+      const pageContent = {
+        content: '<html><body>Test content</body></html>',
+        sourceUrl: 'https://example.com/page',
+        title: 'Test Page',
+      };
+
+      await runAgentLoop(
+        'test goal',
+        context,
+        memory,
+        config,
+        () => {},
+        undefined,
+        undefined,
+        pageContent
+      );
+
+      expect(mockIndexPageAsync).not.toHaveBeenCalled();
+    });
+
+    it('skips auto-indexing when no pageContent provided', async () => {
+      mockCallLLM.mockImplementation(async (_messages, _config, onToken) => {
+        const response = '<synthesis>Done.</synthesis>';
+        onToken(response);
+        return { content: response, usage: { promptTokens: 100, completionTokens: 50 } };
+      });
+
+      const context = createContext('test goal', 128000);
+      const memory = createEpisodicMemory('test-session');
+      const config = createTestConfig();
+
+      await runAgentLoop('test goal', context, memory, config, () => {});
+
+      expect(mockIndexPageAsync).not.toHaveBeenCalled();
+    });
+  });
+});

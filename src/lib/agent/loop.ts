@@ -1,5 +1,5 @@
 // Agent Loop - Core ReAct Controller
-// Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7
+// Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 2.1, 2.2, 2.3, 2.4, 2.6, 3.1, 3.6
 
 import type {
   AgentConfig,
@@ -51,6 +51,10 @@ import {
 } from './logger';
 import { isBudgetExceeded, estimateTokens } from './tokens';
 import { countTokens } from '../tokenizer';
+import { getMemoryManager } from '../memory';
+import type { MemoryStats } from '../memory/types';
+import { buildRAGContext, buildRAGContextMessage, calculateTokenBudgets } from './rag-context';
+import { indexPageAsync } from './auto-indexer';
 
 // ============================================================================
 // Constants
@@ -58,6 +62,29 @@ import { countTokens } from '../tokenizer';
 
 const DEFAULT_MAX_STEPS = 5;
 const DEFAULT_MAX_RETRIES = 3;
+
+// ============================================================================
+// Safe MemoryManager Access
+// Requirements: 2.1, 2.4
+// ============================================================================
+
+interface MemoryManagerSafe {
+  getStats(): MemoryStats;
+}
+
+/**
+ * Safely get MemoryManager with error handling.
+ * Returns null on initialization failure, logs warning.
+ * Requirements: 2.1, 2.4
+ */
+export async function getMemoryManagerSafe(): Promise<MemoryManagerSafe | null> {
+  try {
+    return await getMemoryManager();
+  } catch (error) {
+    console.warn('[AgentLoop] MemoryManager unavailable, RAG disabled:', error);
+    return null;
+  }
+}
 
 // ============================================================================
 // Goal Achievement Detection
@@ -334,7 +361,7 @@ function parseAgentResponse(response: string): ParsedResponse {
 
 // ============================================================================
 // Main Agent Loop
-// Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7
+// Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 2.2, 2.3, 2.6
 // ============================================================================
 
 /**
@@ -348,6 +375,7 @@ function parseAgentResponse(response: string): ParsedResponse {
  * 5. Repeat or synthesize - Requirements: 1.5
  * 6. Emit status updates - Requirements: 1.6
  * 7. Respect step limits - Requirements: 1.7
+ * 8. Inject RAG context when enabled - Requirements: 2.2, 2.3, 2.6
  */
 export async function runAgentLoop(
   goal: string,
@@ -356,7 +384,8 @@ export async function runAgentLoop(
   config: AgentConfig,
   onStatus: StatusCallback,
   onChunk?: (chunk: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  pageContent?: { content: string; sourceUrl: string; title: string } // For auto-indexing
 ): Promise<{
   trajectory: AgentTrajectory;
   context: AgentContext;
@@ -387,6 +416,60 @@ export async function runAgentLoop(
   // Get available tools
   const toolsPrompt = formatToolsForPrompt();
   const availableToolNames = getToolSchemas().map((t) => t.name);
+
+  // ========================================================================
+  // RAG Context Setup
+  // Requirements: 2.2, 2.3, 2.6
+  // ========================================================================
+  let ragContextMessage: ChatMessage | null = null;
+
+  // Check MemoryManager readiness and build RAG context if enabled
+  const memoryManager = await getMemoryManagerSafe();
+  const ragEnabled =
+    config.ragConfig && memoryManager && memoryManager.getStats().embeddingModelLoaded;
+
+  if (ragEnabled && config.ragConfig) {
+    try {
+      // Calculate token budgets
+      // Estimate system prompt and user query tokens for budget calculation
+      const systemPromptEstimate = 1500; // Approximate system prompt size
+      const userQueryTokens = countTokens(goal);
+      const responseReserve = 2000; // Reserve for response
+
+      const budgets = calculateTokenBudgets(
+        config.llmConfig.contextLimit ?? 128000,
+        systemPromptEstimate,
+        userQueryTokens,
+        responseReserve,
+        {
+          baseBudget: config.ragConfig.knowledgeBudget,
+          preferenceBudget: config.ragConfig.preferenceBudget,
+        }
+      );
+
+      // Build RAG context with calculated knowledge budget
+      const ragBlock = await buildRAGContext(goal, budgets.knowledgeBudget, config.ragConfig);
+
+      // Create separate message for RAG context (NOT injected into system prompt)
+      if (ragBlock.userProfile || ragBlock.relatedKnowledge) {
+        ragContextMessage = buildRAGContextMessage(ragBlock);
+        console.log(
+          `[AgentLoop] RAG context built: ${ragBlock.totalTokens} tokens, ${ragBlock.summary}`
+        );
+      }
+    } catch (error) {
+      console.warn('[AgentLoop] Failed to build RAG context:', error);
+      // Continue without RAG context
+    }
+  }
+
+  // ========================================================================
+  // Auto-indexing (fire-and-forget)
+  // Requirements: 3.1, 3.6
+  // ========================================================================
+  if (config.enableAutoIndex !== false && pageContent) {
+    indexPageAsync(pageContent.content, pageContent.sourceUrl, pageContent.title);
+  }
 
   let stepNumber = 0;
   let lastToolResult: ToolResult | undefined;
@@ -441,8 +524,11 @@ export async function runAgentLoop(
       tokenUsage: trajectory.totalTokens,
     });
 
+    // Build messages array with RAG context as separate message
+    // Requirements: 2.3 - Inject RAG context as separate assistant message
     const messages: ChatMessage[] = [
       { role: 'system', content: systemPrompt },
+      ...(ragContextMessage ? [ragContextMessage] : []),
       { role: 'user', content: userPrompt },
     ];
 

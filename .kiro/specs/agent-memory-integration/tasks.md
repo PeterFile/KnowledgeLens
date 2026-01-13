@@ -135,30 +135,30 @@ This plan implements the Agent Memory Integration module in phases: first extend
     - **Property 12: Dual Source Citation**
     - **Validates: Requirements 6.4**
 
-- [ ] 8. Integrate with Agent Loop
-  - [ ] 8.1 Extend AgentConfig with RAG settings
+- [x] 8. Integrate with Agent Loop
+  - [x] 8.1 Extend AgentConfig with RAG settings
     - Add `ragConfig?: RAGConfig` to AgentConfig in `src/lib/agent/types.ts`
     - Add `enableAutoIndex?: boolean` to AgentConfig
     - _Requirements: 2.5_
 
-  - [ ] 8.2 Implement safe MemoryManager access
+  - [x] 8.2 Implement safe MemoryManager access
     - Implement `getMemoryManagerSafe()` with error handling
     - Return null on initialization failure, log warning
     - _Requirements: 2.1, 2.4_
 
-  - [ ] 8.3 Integrate RAG context into Agent Loop
+  - [x] 8.3 Integrate RAG context into Agent Loop
     - Modify `runAgentLoop()` to check MemoryManager readiness
     - Build RAG context when enabled and ready
     - Inject RAG context as separate assistant message
     - Maintain backward compatibility when RAG disabled
     - _Requirements: 2.2, 2.3, 2.6_
 
-  - [ ] 8.4 Integrate auto-indexing into Agent Loop
+  - [x] 8.4 Integrate auto-indexing into Agent Loop
     - Call `indexPageAsync()` after page analysis
     - Fire-and-forget pattern, do not block response
     - _Requirements: 3.1, 3.6_
 
-  - [ ] 8.5 Write integration tests for Agent Loop
+  - [x] 8.5 Write integration tests for Agent Loop
     - Test RAG context injection
     - Test fallback when MemoryManager unavailable
     - Test auto-indexing trigger

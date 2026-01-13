@@ -6,7 +6,9 @@ const mockVectorStore = {
   insert: vi.fn(),
   insertBatch: vi.fn(),
   search: vi.fn(),
+  searchByFilter: vi.fn(),
   remove: vi.fn(),
+  removeByFilter: vi.fn(),
   getDocumentCount: vi.fn(() => 0),
   toSnapshot: vi.fn(),
 };
@@ -361,5 +363,136 @@ describe('Integration Tests', () => {
       const results = await Promise.all(promises);
       expect(results).toHaveLength(10);
     });
+  });
+});
+
+describe('removeBySourceUrl', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockEmbeddings.clear();
+    mockVectorStore.insertBatch.mockResolvedValue(['id-1']);
+    mockVectorStore.search.mockResolvedValue([]);
+    mockVectorStore.searchByFilter.mockResolvedValue([]);
+    mockVectorStore.removeByFilter.mockResolvedValue(0);
+    mockVectorStore.toSnapshot.mockResolvedValue(new ArrayBuffer(100));
+    mockVectorStore.getDocumentCount.mockReturnValue(0);
+  });
+
+  it('removes all chunks matching sourceUrl', async () => {
+    mockVectorStore.removeByFilter.mockResolvedValue(3);
+
+    const manager = await getMemoryManager();
+    const removedCount = await manager.removeBySourceUrl('https://example.com/page1');
+
+    expect(removedCount).toBe(3);
+    expect(mockVectorStore.removeByFilter).toHaveBeenCalledWith({
+      sourceUrl: 'https://example.com/page1',
+    });
+  });
+
+  it('returns 0 when no chunks match', async () => {
+    mockVectorStore.removeByFilter.mockResolvedValue(0);
+
+    const manager = await getMemoryManager();
+    const removedCount = await manager.removeBySourceUrl('https://nonexistent.com');
+
+    expect(removedCount).toBe(0);
+  });
+
+  it('handles multiple URLs independently', async () => {
+    mockVectorStore.removeByFilter.mockResolvedValueOnce(2).mockResolvedValueOnce(5);
+
+    const manager = await getMemoryManager();
+
+    const count1 = await manager.removeBySourceUrl('https://example.com/page1');
+    const count2 = await manager.removeBySourceUrl('https://example.com/page2');
+
+    expect(count1).toBe(2);
+    expect(count2).toBe(5);
+  });
+});
+
+describe('searchBySourceUrl', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockEmbeddings.clear();
+    mockVectorStore.insertBatch.mockResolvedValue(['id-1']);
+    mockVectorStore.search.mockResolvedValue([]);
+    mockVectorStore.searchByFilter.mockResolvedValue([]);
+    mockVectorStore.removeByFilter.mockResolvedValue(0);
+    mockVectorStore.toSnapshot.mockResolvedValue(new ArrayBuffer(100));
+    mockVectorStore.getDocumentCount.mockReturnValue(0);
+  });
+
+  it('returns all chunks for a sourceUrl', async () => {
+    const mockResults = [
+      {
+        document: {
+          id: 'doc-1',
+          content: 'Chunk 1 content',
+          embedding: Array(384).fill(0.1),
+          sourceUrl: 'https://example.com/page1',
+          title: 'Test Page',
+          headingPath: ['Section 1'],
+          createdAt: Date.now(),
+        },
+        score: 1.0,
+      },
+      {
+        document: {
+          id: 'doc-2',
+          content: 'Chunk 2 content',
+          embedding: Array(384).fill(0.2),
+          sourceUrl: 'https://example.com/page1',
+          title: 'Test Page',
+          headingPath: ['Section 2'],
+          createdAt: Date.now(),
+        },
+        score: 1.0,
+      },
+    ];
+    mockVectorStore.searchByFilter.mockResolvedValue(mockResults);
+
+    const manager = await getMemoryManager();
+    const results = await manager.searchBySourceUrl('https://example.com/page1');
+
+    expect(results).toHaveLength(2);
+    expect(mockVectorStore.searchByFilter).toHaveBeenCalledWith(
+      { sourceUrl: 'https://example.com/page1' },
+      100
+    );
+  });
+
+  it('returns empty array when no chunks match', async () => {
+    mockVectorStore.searchByFilter.mockResolvedValue([]);
+
+    const manager = await getMemoryManager();
+    const results = await manager.searchBySourceUrl('https://nonexistent.com');
+
+    expect(results).toEqual([]);
+  });
+
+  it('respects custom limit parameter', async () => {
+    mockVectorStore.searchByFilter.mockResolvedValue([]);
+
+    const manager = await getMemoryManager();
+    await manager.searchBySourceUrl('https://example.com', 50);
+
+    expect(mockVectorStore.searchByFilter).toHaveBeenCalledWith(
+      { sourceUrl: 'https://example.com' },
+      50
+    );
+  });
+
+  it('does not compute embeddings (filter-only search)', async () => {
+    const { computeEmbedding } = await import('../../../src/lib/memory/embedding-client');
+    vi.mocked(computeEmbedding).mockClear();
+    mockVectorStore.searchByFilter.mockResolvedValue([]);
+
+    const manager = await getMemoryManager();
+    await manager.searchBySourceUrl('https://example.com');
+
+    // searchBySourceUrl should NOT call computeEmbedding
+    expect(computeEmbedding).not.toHaveBeenCalled();
   });
 });

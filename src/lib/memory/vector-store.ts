@@ -1,8 +1,9 @@
 // Vector store using Orama for hybrid search
-// Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7
+// Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 5.1
 
 import { create, insert, search, remove, count, type Orama } from '@orama/orama';
 import { persist, restore } from '@orama/plugin-data-persistence';
+import type { DocumentType, PreferenceType } from './types';
 
 export interface Document {
   id: string;
@@ -12,6 +13,8 @@ export interface Document {
   title: string;
   headingPath: string[];
   createdAt: number;
+  docType?: DocumentType;
+  preferenceType?: PreferenceType;
 }
 
 export interface SearchOptions {
@@ -22,6 +25,8 @@ export interface SearchOptions {
     sourceUrl?: string;
     createdAfter?: number;
     createdBefore?: number;
+    docType?: DocumentType;
+    preferenceType?: PreferenceType;
   };
 }
 
@@ -38,6 +43,8 @@ const SCHEMA = {
   title: 'string',
   headingPath: 'string[]',
   createdAt: 'number',
+  docType: 'string',
+  preferenceType: 'string',
 } as const;
 
 type OramaDB = Orama<typeof SCHEMA>;
@@ -46,7 +53,9 @@ export interface VectorStore {
   insert(doc: Omit<Document, 'id'>): Promise<string>;
   insertBatch(docs: Omit<Document, 'id'>[]): Promise<string[]>;
   search(query: string, embedding: number[], options?: SearchOptions): Promise<SearchResult[]>;
+  searchByFilter(filters: SearchOptions['filters'], limit?: number): Promise<SearchResult[]>;
   remove(id: string): Promise<boolean>;
+  removeByFilter(filters: SearchOptions['filters']): Promise<number>;
   getDocumentCount(): number;
   toSnapshot(): Promise<ArrayBuffer>;
 }
@@ -62,6 +71,14 @@ function buildWhereClause(filters?: SearchOptions['filters']) {
 
   if (filters.sourceUrl) {
     where.sourceUrl = filters.sourceUrl;
+  }
+
+  if (filters.docType) {
+    where.docType = filters.docType;
+  }
+
+  if (filters.preferenceType) {
+    where.preferenceType = filters.preferenceType;
   }
 
   if (filters.createdAfter || filters.createdBefore) {
@@ -151,6 +168,48 @@ function wrapDatabase(db: OramaDB): VectorStore {
       } catch {
         return false;
       }
+    },
+
+    async searchByFilter(filters, limit = 1000) {
+      const where = buildWhereClause(filters);
+      if (!where) return [];
+
+      // Use fulltext search with empty term to get all matching documents
+      const results = await search(db, {
+        term: '',
+        limit,
+        where,
+      });
+
+      return results.hits.map((hit) => ({
+        document: hit.document as Document,
+        score: hit.score,
+      }));
+    },
+
+    async removeByFilter(filters) {
+      const where = buildWhereClause(filters);
+      if (!where) return 0;
+
+      // First find all matching documents
+      const results = await search(db, {
+        term: '',
+        limit: 10000, // High limit to get all matching docs
+        where,
+      });
+
+      // Remove each document
+      let removedCount = 0;
+      for (const hit of results.hits) {
+        try {
+          await remove(db, hit.id);
+          removedCount++;
+        } catch {
+          // Ignore removal errors for individual documents
+        }
+      }
+
+      return removedCount;
     },
 
     getDocumentCount() {

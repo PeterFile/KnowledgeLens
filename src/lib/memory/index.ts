@@ -1,5 +1,5 @@
 // Memory Manager - unified interface for memory operations
-// Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6
+// Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 3.4, 3.5
 
 import {
   saveSnapshot,
@@ -20,6 +20,8 @@ interface MemoryManager {
   addDocument(content: string, metadata: AddDocumentOptions): Promise<string[]>;
   addChunks(chunks: Chunk[], metadata: AddDocumentOptions): Promise<string[]>;
   search(query: string, options?: SearchOptions): Promise<SearchResult[]>;
+  removeBySourceUrl(sourceUrl: string): Promise<number>;
+  searchBySourceUrl(sourceUrl: string, limit?: number): Promise<SearchResult[]>;
   sync(): Promise<void>;
   getStats(): MemoryStats;
 }
@@ -70,6 +72,8 @@ export async function getMemoryManager(): Promise<MemoryManager> {
         title: metadata.title,
         headingPath: chunk.headingPath,
         createdAt: Date.now(),
+        docType: 'content',
+        preferenceType: 'custom',
       }));
 
       return vectorStore.insertBatch(docs);
@@ -80,6 +84,16 @@ export async function getMemoryManager(): Promise<MemoryManager> {
 
       const embedding = await computeEmbedding(query);
       return vectorStore.search(query, embedding, options);
+    },
+
+    async removeBySourceUrl(sourceUrl) {
+      if (!vectorStore) throw new Error('Memory not initialized');
+      return vectorStore.removeByFilter({ sourceUrl });
+    },
+
+    async searchBySourceUrl(sourceUrl, limit = 100) {
+      if (!vectorStore) throw new Error('Memory not initialized');
+      return vectorStore.searchByFilter({ sourceUrl }, limit);
     },
 
     async sync() {
@@ -110,5 +124,13 @@ export async function getMemoryManager(): Promise<MemoryManager> {
 }
 
 // Re-export types and utilities
-export type { Chunk, SearchOptions, SearchResult, MemoryStats, AddDocumentOptions } from './types';
+export type {
+  Chunk,
+  SearchOptions,
+  SearchResult,
+  MemoryStats,
+  AddDocumentOptions,
+  DocumentType,
+  PreferenceType,
+} from './types';
 export { chunkHtmlContent } from './chunker';

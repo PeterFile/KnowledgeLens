@@ -108,7 +108,7 @@ This plan implements the Agent Memory Integration module in phases: first extend
     - **Property 11: Preference Inclusion**
     - **Validates: Requirements 5.2, 5.3, 5.4**
 
-- [ ] 6. Checkpoint - Verify core modules
+- [x] 6. Checkpoint - Verify core modules
   - Run all tests with `pnpm test`
   - Manually test RAG context building
   - Ask user if questions arise

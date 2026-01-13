@@ -52,9 +52,13 @@ const PROFESSION_PATTERNS = [
   /^my (?:job|profession|role|occupation) is (?:a |an )?(.+?)(?:\.|,|$)/i,
 ];
 
+// Level patterns use explicit keywords to avoid matching professions
+// Known level keywords: beginner, intermediate, advanced, expert, novice, newbie
 const LEVEL_PATTERNS = [
   /^explain (?:it |this |things )?(?:to me )?(?:like|as if) i(?:'m| am| were) (?:a )?(.+?)(?:\.|,|$)/i,
-  /^i(?:'m| am) (?:a )?(?:complete |total )?(.+?) (?:in|at|with) (.+?)(?:\.|,|$)/i,
+  // More restrictive pattern: only match if the level part is a known level keyword
+  // This prevents matching "I am a [profession] in [field]" as a level pattern
+  /^i(?:'m| am) (?:a )?(?:complete |total )?(beginner|intermediate|advanced|expert|novice|newbie) (?:in|at|with) (.+?)(?:\.|,|$)/i,
   /^i(?:'m| am) (?:a )?(.+?) level(?:\.|,|$)/i,
   /^treat me (?:like|as) (?:a )?(.+?)(?:\.|,|$)/i,
 ];

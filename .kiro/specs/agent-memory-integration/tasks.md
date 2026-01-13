@@ -34,28 +34,28 @@ This plan implements the Agent Memory Integration module in phases: first extend
   - Ensure new methods work correctly
   - Ask user if questions arise
 
-- [ ] 3. Implement RAG Pipeline
-  - [ ] 3.1 Create RAG context module
+- [x] 3. Implement RAG Pipeline
+  - [x] 3.1 Create RAG context module
     - Create `src/lib/agent/rag-context.ts`
     - Implement `RAGConfig` interface with defaults
     - Implement `createRAGConfig()` factory function
     - Implement `calculateKnowledgeBudget()` with formula
     - _Requirements: 1.1, 1.6, 4.1_
 
-  - [ ] 3.2 Implement RAG context building
+  - [x] 3.2 Implement RAG context building
     - Implement `buildRAGContext()` with hybrid search
     - Implement chunk prioritization by relevance score
     - Implement sentence boundary truncation
     - Implement summary header generation
     - _Requirements: 1.1, 1.2, 4.2, 4.3, 4.4_
 
-  - [ ] 3.3 Implement RAG context formatting
+  - [x] 3.3 Implement RAG context formatting
     - Implement `formatRAGContextForPrompt()` with XML structure
     - Implement `buildRAGContextMessage()` with assistant role and untrusted data prefix
     - Structure output with "User Profile" and "Related Knowledge" sections
     - _Requirements: 1.3, 1.4, 4.5_
 
-  - [ ] 3.4 Write property tests for RAG Pipeline
+  - [x] 3.4 Write property tests for RAG Pipeline
     - **Property 1: Top-K Retrieval Bound**
     - **Property 2: RAG Context Isolation**
     - **Property 3: Source Attribution Completeness**

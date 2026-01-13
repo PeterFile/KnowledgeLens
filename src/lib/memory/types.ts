@@ -55,4 +55,6 @@ export interface MemoryStats {
 export interface AddDocumentOptions {
   sourceUrl: string;
   title: string;
+  docType?: DocumentType;
+  preferenceType?: PreferenceType;
 }

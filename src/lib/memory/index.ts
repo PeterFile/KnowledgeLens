@@ -20,6 +20,7 @@ interface MemoryManager {
   addDocument(content: string, metadata: AddDocumentOptions): Promise<string[]>;
   addChunks(chunks: Chunk[], metadata: AddDocumentOptions): Promise<string[]>;
   search(query: string, options?: SearchOptions): Promise<SearchResult[]>;
+  removeById(id: string): Promise<boolean>;
   removeBySourceUrl(sourceUrl: string): Promise<number>;
   searchBySourceUrl(sourceUrl: string, limit?: number): Promise<SearchResult[]>;
   sync(): Promise<void>;
@@ -72,8 +73,8 @@ export async function getMemoryManager(): Promise<MemoryManager> {
         title: metadata.title,
         headingPath: chunk.headingPath,
         createdAt: Date.now(),
-        docType: 'content',
-        preferenceType: 'custom',
+        docType: metadata.docType ?? 'content',
+        preferenceType: metadata.preferenceType ?? 'custom',
       }));
 
       return vectorStore.insertBatch(docs);
@@ -84,6 +85,11 @@ export async function getMemoryManager(): Promise<MemoryManager> {
 
       const embedding = await computeEmbedding(query);
       return vectorStore.search(query, embedding, options);
+    },
+
+    async removeById(id) {
+      if (!vectorStore) throw new Error('Memory not initialized');
+      return vectorStore.remove(id);
     },
 
     async removeBySourceUrl(sourceUrl) {

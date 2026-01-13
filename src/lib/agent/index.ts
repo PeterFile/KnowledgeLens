@@ -13,6 +13,9 @@ export * from './rag';
 export * from './logger';
 export * from './loop';
 export * from './goal-handlers';
+export * from './rag-context';
+export * from './auto-indexer';
+export * from './preference-store';
 
 // Default configuration values
 export const DEFAULT_AGENT_CONFIG = {

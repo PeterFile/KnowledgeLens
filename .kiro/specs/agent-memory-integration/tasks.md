@@ -65,45 +65,45 @@ This plan implements the Agent Memory Integration module in phases: first extend
     - **Property 9: RAG Context Structure**
     - **Validates: Requirements 1.1, 1.3, 1.4, 1.6, 4.1, 4.2, 4.3, 4.4, 4.5**
 
-- [ ] 4. Implement Auto-Indexer
-  - [ ] 4.1 Create auto-indexer module
+- [x] 4. Implement Auto-Indexer
+  - [x] 4.1 Create auto-indexer module
     - Create `src/lib/agent/auto-indexer.ts`
     - Implement `computeContentHash()` for change detection
     - Implement `shouldIndex()` deduplication check
     - Implement `removeExistingChunks()` for URL cleanup
     - _Requirements: 3.4, 3.5_
 
-  - [ ] 4.2 Implement page indexing
+  - [x] 4.2 Implement page indexing
     - Implement `indexPage()` with chunking and embedding
     - Implement `indexPageAsync()` fire-and-forget wrapper
     - Add logging for indexing completion status
     - _Requirements: 3.1, 3.2, 3.3, 3.6, 3.7_
 
-  - [ ] 4.3 Write property tests for Auto-Indexer
-    - **Property 5: Page Indexing with Metadata**
-    - **Property 6: Page Indexing Idempotence**
+  - [x] 4.3 Write property tests for Auto-Indexer
+    - **Property 5: Page Indexing with Metadata** ✅ PASSED (100 runs)
+    - **Property 6: Page Indexing Idempotence** ✅ PASSED (100 runs)
     - **Validates: Requirements 3.1, 3.3, 3.4, 3.5**
 
-- [ ] 5. Implement Preference Store
-  - [ ] 5.1 Create preference store module
+- [x] 5. Implement Preference Store
+  - [x] 5.1 Create preference store module
     - Create `src/lib/agent/preference-store.ts`
     - Implement `UserPreference` interface
     - Implement `PreferenceStore` interface with CRUD operations
     - Implement singleton `getPreferenceStore()`
     - _Requirements: 5.1, 5.6_
 
-  - [ ] 5.2 Implement preference detection
+  - [x] 5.2 Implement preference detection
     - Implement `detectPreferenceIntent()` with pattern matching
     - Support patterns: "I'm a [profession]", "explain like I'm a [level]", "I prefer [style]"
     - Extract preference type and content
     - _Requirements: 5.2_
 
-  - [ ] 5.3 Implement preference formatting for context
+  - [x] 5.3 Implement preference formatting for context
     - Implement `formatForContext()` with token budget
     - Ensure preferences are always included regardless of query
     - _Requirements: 5.3, 5.4_
 
-  - [ ] 5.4 Write property tests for Preference Store
+  - [x] 5.4 Write property tests for Preference Store
     - **Property 10: Preference Detection**
     - **Property 11: Preference Inclusion**
     - **Validates: Requirements 5.2, 5.3, 5.4**

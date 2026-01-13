@@ -448,7 +448,7 @@ export async function runAgentLoop(
       const responseReserve = 2000; // Reserve for response
 
       const budgets = calculateTokenBudgets(
-        config.llmConfig.contextLimit ?? 128000,
+        config.llmConfig.maxContextTokens ?? 128000,
         systemPromptEstimate,
         userQueryTokens,
         responseReserve,

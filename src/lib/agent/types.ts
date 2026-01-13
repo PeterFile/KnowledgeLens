@@ -2,7 +2,7 @@
 // Requirements: 1.1, 2.1, 2.2, 2.5, 7.1
 
 import type { LLMConfig, SearchConfig, SearchResult } from '../../types';
-import type { RAGConfig } from './rag-context';
+import type { RAGConfig as RAGPipelineConfig } from './rag-context';
 
 // ============================================================================
 // Agent Configuration & Status
@@ -17,7 +17,7 @@ export interface AgentConfig {
   agentSettings?: {
     language?: 'en' | 'zh' | 'ja';
   };
-  ragConfig?: RAGConfig; // RAG pipeline configuration
+  ragConfig?: RAGPipelineConfig; // RAG pipeline configuration
   enableAutoIndex?: boolean; // Default: true - auto-index pages during analysis
 }
 
@@ -229,7 +229,7 @@ export interface GradedResult {
   reasoning: string;
 }
 
-export interface RAGConfig {
+export interface AgenticRAGConfig {
   maxRetries: number; // Default: 2
   relevanceThreshold: number; // Default: 0.5 (50% must be relevant)
 }

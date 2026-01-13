@@ -2,7 +2,13 @@
 // Requirements: 4.1, 4.2, 4.3, 4.4, 4.5
 
 import type { LLMConfig, LLMResponse, SearchConfig, SearchResult } from '../../types';
-import type { GradedResult, RAGConfig, RAGResult, StatusCallback, RelevanceGrade } from './types';
+import type {
+  GradedResult,
+  AgenticRAGConfig,
+  RAGResult,
+  StatusCallback,
+  RelevanceGrade,
+} from './types';
 import { callLLMWithMessages, searchWeb } from '../api';
 import { renderTemplate, RESULT_GRADING, QUERY_REWRITE } from './prompts';
 
@@ -26,7 +32,7 @@ function addTokenUsage(accumulator: TokenAccumulator, response: LLMResponse): vo
 // Default Configuration
 // ============================================================================
 
-export const DEFAULT_RAG_CONFIG: RAGConfig = {
+export const DEFAULT_RAG_CONFIG: AgenticRAGConfig = {
   maxRetries: 2,
   relevanceThreshold: 0.5, // 50% of results must be relevant
 };
@@ -258,7 +264,7 @@ function isDuplicateQuery(query: string, history: string[]): boolean {
 export async function agenticRAG(
   query: string,
   context: string,
-  config: RAGConfig,
+  config: AgenticRAGConfig,
   llmConfig: LLMConfig,
   searchConfig: SearchConfig,
   onStatus?: StatusCallback,

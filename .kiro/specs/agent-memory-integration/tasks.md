@@ -182,33 +182,33 @@ This plan implements the Agent Memory Integration module in phases: first extend
   - Test search enhancement with memory
   - Ask user if questions arise
 
-- [ ] 11. Implement Settings UI for Memory
-  - [ ] 11.1 Create memory stats component
+- [x] 11. Implement Settings UI for Memory
+  - [x] 11.1 Create memory stats component
     - Create memory statistics display in `src/popup/components/settings/`
     - Display document count, index size, last sync time
     - Display embedding model status (Loading/Ready/Error)
     - _Requirements: 7.1, 7.5_
 
-  - [ ] 11.2 Implement relative time formatting
+  - [x] 11.2 Implement relative time formatting
     - Implement `formatRelativeTime()` utility
     - Display last sync as "X minutes/hours/days ago"
     - _Requirements: 7.6_
 
-  - [ ] 11.3 Implement memory management actions
+  - [x] 11.3 Implement memory management actions
     - Add "Sync Now" button calling MemoryManager.sync()
     - Add "Clear Memory" button with confirmation modal
     - _Requirements: 7.2, 7.3, 7.4_
 
-  - [ ] 11.4 Implement preference management UI
+  - [x] 11.4 Implement preference management UI
     - Display stored preferences list
     - Add "Clear Preferences" button
     - _Requirements: 5.6_
 
-  - [ ] 11.5 Write property tests for time formatting
+  - [x] 11.5 Write property tests for time formatting
     - **Property 13: Relative Time Formatting**
     - **Validates: Requirements 7.6**
 
-- [ ] 12. Final checkpoint - Full integration test
+- [x] 12. Final checkpoint - Full integration test
   - Run all tests with `pnpm test`
   - Build extension with `pnpm build`
   - Test full flow: browse page → auto-index → query with RAG → search enhancement

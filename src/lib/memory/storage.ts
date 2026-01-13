@@ -94,6 +94,16 @@ export async function deleteOldSnapshots(keepCount: number): Promise<void> {
   }
 }
 
+export async function clearSnapshots(): Promise<void> {
+  try {
+    const db = await openDatabase();
+    await db.clear('snapshots');
+  } catch (error) {
+    console.error('[Memory] Failed to clear snapshots:', error);
+    throw error instanceof Error ? error : new Error('Failed to clear snapshots');
+  }
+}
+
 export async function getMetadata<T>(key: string): Promise<T | null> {
   try {
     const db = await openDatabase();
@@ -111,5 +121,15 @@ export async function setMetadata<T>(key: string, value: T): Promise<void> {
     await db.put('metadata', value, key);
   } catch (error) {
     console.error('[Memory] Failed to set metadata:', error);
+  }
+}
+
+export async function clearMetadata(): Promise<void> {
+  try {
+    const db = await openDatabase();
+    await db.clear('metadata');
+  } catch (error) {
+    console.error('[Memory] Failed to clear metadata:', error);
+    throw error instanceof Error ? error : new Error('Failed to clear metadata');
   }
 }

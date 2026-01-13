@@ -39,8 +39,10 @@ import {
   handleScreenshotGoal,
   handleNoteCardGoal,
   handleDeepDiveGoal,
+  getPreferenceStore,
 } from '../lib/agent';
 import type { AgentState, AgentStatus } from '../lib/agent';
+import { getMemoryManager } from '../lib/memory';
 
 console.log('KnowledgeLens background service worker loaded');
 
@@ -1335,6 +1337,91 @@ async function handleComputeEmbedding(
 }
 
 // ============================================================================
+// Memory Management Handlers
+// Requirements: 7.1, 7.2, 7.3, 7.4, 5.6
+// ============================================================================
+
+async function handleMemoryGetStats(
+  sendResponse: (response: ExtensionResponse) => void
+): Promise<void> {
+  try {
+    const memoryManager = await getMemoryManager();
+    const stats = memoryManager.getStats();
+    sendResponse({ success: true, data: stats, requestId: '' });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get memory stats',
+      requestId: '',
+    });
+  }
+}
+
+async function handleMemoryGetPreferences(
+  sendResponse: (response: ExtensionResponse) => void
+): Promise<void> {
+  try {
+    const preferenceStore = getPreferenceStore();
+    const preferences = await preferenceStore.getAll();
+    sendResponse({ success: true, data: preferences, requestId: '' });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get preferences',
+      requestId: '',
+    });
+  }
+}
+
+async function handleMemorySync(
+  sendResponse: (response: ExtensionResponse) => void
+): Promise<void> {
+  try {
+    const memoryManager = await getMemoryManager();
+    await memoryManager.sync();
+    sendResponse({ success: true, data: { synced: true }, requestId: '' });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to sync memory',
+      requestId: '',
+    });
+  }
+}
+
+async function handleMemoryClear(
+  sendResponse: (response: ExtensionResponse) => void
+): Promise<void> {
+  try {
+    const memoryManager = await getMemoryManager();
+    await memoryManager.clearAll();
+    sendResponse({ success: true, data: { cleared: true }, requestId: '' });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to clear memory',
+      requestId: '',
+    });
+  }
+}
+
+async function handleMemoryClearPreferences(
+  sendResponse: (response: ExtensionResponse) => void
+): Promise<void> {
+  try {
+    const preferenceStore = getPreferenceStore();
+    await preferenceStore.clear();
+    sendResponse({ success: true, data: { cleared: true }, requestId: '' });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to clear preferences',
+      requestId: '',
+    });
+  }
+}
+
+// ============================================================================
 // Keyboard Shortcut Handler
 // Requirements: 5.1 - Ctrl+Shift+X triggers screenshot overlay
 // ============================================================================
@@ -1482,6 +1569,27 @@ chrome.runtime.onMessage.addListener(
 
       case 'compute_embedding':
         handleComputeEmbedding(message.payload, sendResponse);
+        return true;
+
+      // Memory management messages
+      case 'memory_get_stats':
+        handleMemoryGetStats(sendResponse);
+        return true;
+
+      case 'memory_get_preferences':
+        handleMemoryGetPreferences(sendResponse);
+        return true;
+
+      case 'memory_sync':
+        handleMemorySync(sendResponse);
+        return true;
+
+      case 'memory_clear':
+        handleMemoryClear(sendResponse);
+        return true;
+
+      case 'memory_clear_preferences':
+        handleMemoryClearPreferences(sendResponse);
         return true;
 
       default: {

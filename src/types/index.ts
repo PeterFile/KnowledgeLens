@@ -57,7 +57,13 @@ export type ExtensionMessage =
   | { action: 'agent_get_status'; payload: AgentGetStatusPayload }
   | { action: 'agent_deep_dive'; payload: DeepDivePayload }
   | { action: 'preload_embedding' }
-  | { action: 'compute_embedding'; payload: EmbeddingPayload };
+  | { action: 'compute_embedding'; payload: EmbeddingPayload }
+  // Memory management messages (popup → background)
+  | { action: 'memory_get_stats' }
+  | { action: 'memory_get_preferences' }
+  | { action: 'memory_sync' }
+  | { action: 'memory_clear' }
+  | { action: 'memory_clear_preferences' };
 
 export interface EmbeddingPayload {
   texts: string[];

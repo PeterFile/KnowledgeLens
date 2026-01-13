@@ -7,6 +7,8 @@ import {
   deleteOldSnapshots,
   setMetadata,
   getMetadata,
+  clearSnapshots,
+  clearMetadata,
 } from './storage';
 import { createVectorStore, restoreFromSnapshot, type VectorStore } from './vector-store';
 import { chunkHtmlContent } from './chunker';
@@ -23,6 +25,7 @@ interface MemoryManager {
   removeById(id: string): Promise<boolean>;
   removeBySourceUrl(sourceUrl: string): Promise<number>;
   searchBySourceUrl(sourceUrl: string, limit?: number): Promise<SearchResult[]>;
+  clearAll(): Promise<void>;
   sync(): Promise<void>;
   getStats(): MemoryStats;
 }
@@ -100,6 +103,17 @@ export async function getMemoryManager(): Promise<MemoryManager> {
     async searchBySourceUrl(sourceUrl, limit = 100) {
       if (!vectorStore) throw new Error('Memory not initialized');
       return vectorStore.searchByFilter({ sourceUrl }, limit);
+    },
+
+    async clearAll() {
+      if (!vectorStore) throw new Error('Memory not initialized');
+
+      await clearSnapshots();
+      await clearMetadata();
+
+      vectorStore = await createVectorStore();
+      lastSyncTime = null;
+      indexSizeBytes = 0;
     },
 
     async sync() {

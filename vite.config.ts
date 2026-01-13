@@ -43,7 +43,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           transformers: ['@huggingface/transformers'],
-          orama: ['@orama/orama', '@orama/plugin-data-persistence'],
+          orama: ['@orama/orama'],
         },
         // Keep WASM and ONNX files with recognizable names
         assetFileNames: (assetInfo) => {
@@ -55,7 +55,7 @@ export default defineConfig({
         },
       },
     },
-    chunkSizeWarningLimit: 4000,
+    chunkSizeWarningLimit: 6000,
     // Ensure WASM files are treated as assets
     assetsInlineLimit: 0,
   },

@@ -6,12 +6,14 @@ import { openDB, type IDBPDatabase } from 'idb';
 const DB_NAME = 'knowledgelens_memory';
 const DB_VERSION = 1;
 
+export type SnapshotData = unknown;
+
 interface MemoryDB {
   snapshots: {
     key: string;
     value: {
       id: string;
-      data: ArrayBuffer;
+      data: SnapshotData;
       createdAt: number;
       documentCount: number;
     };
@@ -45,7 +47,7 @@ export async function openDatabase(): Promise<IDBPDatabase<MemoryDB>> {
 
 export async function saveSnapshot(
   id: string,
-  data: ArrayBuffer,
+  data: SnapshotData,
   documentCount: number
 ): Promise<void> {
   try {
@@ -62,7 +64,7 @@ export async function saveSnapshot(
 }
 
 export async function loadLatestSnapshot(): Promise<{
-  data: ArrayBuffer;
+  data: SnapshotData;
   documentCount: number;
 } | null> {
   try {

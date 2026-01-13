@@ -21,28 +21,29 @@ import type {
   StoredSettings,
 } from '../types';
 import { loadSettings } from '../lib/storage';
+import { getMemoryManager } from '../lib/memory';
 import * as requestManager from '../lib/request-manager';
 import { captureAndCropScreenshot, ensureOffscreenDocument } from '../lib/screenshot';
 import type { NoteCardData } from '../lib/notecard';
+import { runAgentLoop, createAgentConfig, getFinalResponse } from '../lib/agent/loop';
+import { createSession, saveState, loadState } from '../lib/agent/state';
+import { createContext } from '../lib/agent/context';
+import { createEpisodicMemory } from '../lib/agent/reflection';
 import {
-  runAgentLoop,
-  createAgentConfig,
-  getFinalResponse,
-  createSession,
-  saveState,
-  loadState,
-  createContext,
-  createEpisodicMemory,
-  DEFAULT_AGENT_CONFIG,
   handleSummarizeGoal,
   handleExplainGoal,
   handleScreenshotGoal,
   handleNoteCardGoal,
   handleDeepDiveGoal,
-  getPreferenceStore,
-} from '../lib/agent';
-import type { AgentState, AgentStatus } from '../lib/agent';
-import { getMemoryManager } from '../lib/memory';
+} from '../lib/agent/goal-handlers';
+import { getPreferenceStore } from '../lib/agent/preference-store';
+import type { AgentState, AgentStatus } from '../lib/agent/types';
+
+const DEFAULT_AGENT_CONFIG = {
+  maxSteps: 5,
+  maxRetries: 3,
+  tokenBudget: 100000,
+} as const;
 
 console.log('KnowledgeLens background service worker loaded');
 
@@ -50,6 +51,12 @@ console.log('KnowledgeLens background service worker loaded');
 // Settings Cache - Avoids repeated chrome.storage.local reads
 // ============================================================================
 let cachedSettings: StoredSettings | null = null;
+
+type MemoryManager = Awaited<ReturnType<typeof getMemoryManager>>;
+
+async function getMemoryManagerSafe(): Promise<MemoryManager> {
+  return getMemoryManager();
+}
 
 // ============================================================================
 // Agent State Management
@@ -1345,7 +1352,7 @@ async function handleMemoryGetStats(
   sendResponse: (response: ExtensionResponse) => void
 ): Promise<void> {
   try {
-    const memoryManager = await getMemoryManager();
+    const memoryManager = await getMemoryManagerSafe();
     const stats = memoryManager.getStats();
     sendResponse({ success: true, data: stats, requestId: '' });
   } catch (error) {
@@ -1377,7 +1384,7 @@ async function handleMemorySync(
   sendResponse: (response: ExtensionResponse) => void
 ): Promise<void> {
   try {
-    const memoryManager = await getMemoryManager();
+    const memoryManager = await getMemoryManagerSafe();
     await memoryManager.sync();
     sendResponse({ success: true, data: { synced: true }, requestId: '' });
   } catch (error) {
@@ -1393,7 +1400,7 @@ async function handleMemoryClear(
   sendResponse: (response: ExtensionResponse) => void
 ): Promise<void> {
   try {
-    const memoryManager = await getMemoryManager();
+    const memoryManager = await getMemoryManagerSafe();
     await memoryManager.clearAll();
     sendResponse({ success: true, data: { cleared: true }, requestId: '' });
   } catch (error) {

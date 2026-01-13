@@ -3,7 +3,6 @@
 
 import type { ToolResult, ToolHandler } from './types';
 import type { LLMConfig, SearchConfig } from '../../types';
-import { enhancedSearch, formatCitations } from './search-enhancement';
 import { getToolSchema, registerTool } from './tools';
 import { SEARCH_WEB_TOOL } from './tool-definitions';
 
@@ -21,6 +20,18 @@ interface ToolHandlerContext {
 }
 
 let toolHandlerContext: ToolHandlerContext | null = null;
+type SearchEnhancementModule = typeof import('./search-enhancement');
+let searchEnhancementPromise: Promise<SearchEnhancementModule> | null = null;
+
+async function loadSearchEnhancement(): Promise<SearchEnhancementModule> {
+  if (!searchEnhancementPromise) {
+    searchEnhancementPromise = import('./search-enhancement').catch((error) => {
+      searchEnhancementPromise = null;
+      throw error;
+    });
+  }
+  return searchEnhancementPromise;
+}
 
 /**
  * Set the context for tool handlers.
@@ -89,6 +100,7 @@ export const searchWebHandler: ToolHandler = async (
   }
 
   try {
+    const { enhancedSearch, formatCitations } = await loadSearchEnhancement();
     // Use enhancedSearch to combine memory + web search
     // Requirements: 6.1 - Query memory first, then web search
     const result = await enhancedSearch(

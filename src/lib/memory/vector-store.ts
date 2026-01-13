@@ -1,8 +1,7 @@
 // Vector store using Orama for hybrid search
 // Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 5.1
 
-import { create, insert, search, remove, count, type Orama } from '@orama/orama';
-import { persist, restore } from '@orama/plugin-data-persistence';
+import { create, insert, search, remove, count, load, save, type Orama } from '@orama/orama';
 import type { DocumentType, PreferenceType } from './types';
 
 export interface Document {
@@ -49,6 +48,8 @@ const SCHEMA = {
 
 type OramaDB = Orama<typeof SCHEMA>;
 
+export type VectorStoreSnapshot = ReturnType<typeof save>;
+
 export interface VectorStore {
   insert(doc: Omit<Document, 'id'>): Promise<string>;
   insertBatch(docs: Omit<Document, 'id'>[]): Promise<string[]>;
@@ -57,7 +58,7 @@ export interface VectorStore {
   remove(id: string): Promise<boolean>;
   removeByFilter(filters: SearchOptions['filters']): Promise<number>;
   getDocumentCount(): number;
-  toSnapshot(): Promise<ArrayBuffer>;
+  toSnapshot(): Promise<VectorStoreSnapshot>;
 }
 
 function generateId(): string {
@@ -99,9 +100,10 @@ export async function createVectorStore(): Promise<VectorStore> {
   return wrapDatabase(db);
 }
 
-export async function restoreFromSnapshot(data: ArrayBuffer): Promise<VectorStore> {
-  const db = await restore('binary', data as unknown as string);
-  return wrapDatabase(db as OramaDB);
+export async function restoreFromSnapshot(data: VectorStoreSnapshot): Promise<VectorStore> {
+  const db: OramaDB = await create({ schema: SCHEMA });
+  load(db, data);
+  return wrapDatabase(db);
 }
 
 function wrapDatabase(db: OramaDB): VectorStore {
@@ -216,9 +218,8 @@ function wrapDatabase(db: OramaDB): VectorStore {
       return count(db);
     },
 
-    async toSnapshot(): Promise<ArrayBuffer> {
-      const data = await persist(db, 'binary');
-      return (data as Uint8Array).buffer as ArrayBuffer;
+    async toSnapshot(): Promise<VectorStoreSnapshot> {
+      return save(db);
     },
   };
 }

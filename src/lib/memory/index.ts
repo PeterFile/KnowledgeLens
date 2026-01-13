@@ -10,7 +10,12 @@ import {
   clearSnapshots,
   clearMetadata,
 } from './storage';
-import { createVectorStore, restoreFromSnapshot, type VectorStore } from './vector-store';
+import {
+  createVectorStore,
+  restoreFromSnapshot,
+  type VectorStore,
+  type VectorStoreSnapshot,
+} from './vector-store';
 import { chunkHtmlContent } from './chunker';
 import { computeEmbedding, computeEmbeddings, isReady, preload } from './embedding-client';
 import type { Chunk, SearchOptions, SearchResult, MemoryStats, AddDocumentOptions } from './types';
@@ -35,13 +40,27 @@ let vectorStore: VectorStore | null = null;
 let lastSyncTime: number | null = null;
 let indexSizeBytes = 0;
 
+function estimateSnapshotSize(data: VectorStoreSnapshot | null): number {
+  if (!data) return 0;
+  try {
+    const json = JSON.stringify(data);
+    if (!json) return 0;
+    if (typeof TextEncoder !== 'undefined') {
+      return new TextEncoder().encode(json).byteLength;
+    }
+    return json.length;
+  } catch {
+    return 0;
+  }
+}
+
 async function initialize(): Promise<void> {
   if (vectorStore) return;
 
   const snapshot = await loadLatestSnapshot();
   if (snapshot) {
-    vectorStore = await restoreFromSnapshot(snapshot.data);
-    indexSizeBytes = snapshot.data.byteLength;
+    vectorStore = await restoreFromSnapshot(snapshot.data as VectorStoreSnapshot);
+    indexSizeBytes = estimateSnapshotSize(snapshot.data as VectorStoreSnapshot);
     lastSyncTime = await getMetadata<number>('lastSyncTime');
   } else {
     vectorStore = await createVectorStore();
@@ -126,7 +145,7 @@ export async function getMemoryManager(): Promise<MemoryManager> {
       await deleteOldSnapshots(MAX_SNAPSHOTS);
 
       lastSyncTime = Date.now();
-      indexSizeBytes = snapshot.byteLength;
+      indexSizeBytes = estimateSnapshotSize(snapshot);
       await setMetadata('lastSyncTime', lastSyncTime);
     },
 

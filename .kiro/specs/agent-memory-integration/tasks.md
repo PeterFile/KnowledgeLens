@@ -164,19 +164,19 @@ This plan implements the Agent Memory Integration module in phases: first extend
     - Test auto-indexing trigger
     - _Requirements: 2.2, 2.3, 2.4_
 
-- [ ] 9. Integrate Search Enhancement into tools
-  - [ ] 9.1 Update search_web_for_info tool
+- [x] 9. Integrate Search Enhancement into tools
+  - [x] 9.1 Update search_web_for_info tool
     - Modify `src/lib/agent/tools.ts` to use `enhancedSearch()`
     - Include memory results in search output
     - Format citations with source labels
     - _Requirements: 6.1, 6.2, 6.4_
 
-  - [ ] 9.2 Write unit tests for enhanced search tool
+  - [x] 9.2 Write unit tests for enhanced search tool
     - Test memory retrieval before web search
     - Test citation formatting
     - _Requirements: 6.1, 6.4_
 
-- [ ] 10. Checkpoint - Verify Agent integration
+- [x] 10. Checkpoint - Verify Agent integration
   - Run all tests with `pnpm test`
   - Test Agent loop with RAG enabled
   - Test search enhancement with memory

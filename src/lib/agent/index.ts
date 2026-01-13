@@ -16,6 +16,8 @@ export * from './goal-handlers';
 export * from './rag-context';
 export * from './auto-indexer';
 export * from './preference-store';
+export * from './tool-handlers';
+export * from './search-enhancement';
 
 // Default configuration values
 export const DEFAULT_AGENT_CONFIG = {

@@ -1,7 +1,7 @@
 // Core types for the Agent Architecture
 // Requirements: 1.1, 2.1, 2.2, 2.5, 7.1
 
-import type { LLMConfig, SearchResult } from '../../types';
+import type { LLMConfig, SearchConfig, SearchResult } from '../../types';
 import type { RAGConfig } from './rag-context';
 
 // ============================================================================
@@ -13,6 +13,7 @@ export interface AgentConfig {
   maxRetries: number; // Default: 3
   tokenBudget: number; // User-configurable
   llmConfig: LLMConfig;
+  searchConfig?: SearchConfig; // Search configuration for enhanced search tool
   agentSettings?: {
     language?: 'en' | 'zh' | 'ja';
   };

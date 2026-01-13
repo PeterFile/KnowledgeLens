@@ -55,6 +55,7 @@ import { getMemoryManager } from '../memory';
 import type { MemoryStats } from '../memory/types';
 import { buildRAGContext, buildRAGContextMessage, calculateTokenBudgets } from './rag-context';
 import { indexPageAsync } from './auto-indexer';
+import { ensureToolHandlersRegistered, setToolHandlerContext } from './tool-handlers';
 
 // ============================================================================
 // Constants
@@ -405,6 +406,16 @@ export async function runAgentLoop(
 
   // Initialize trajectory log
   let log = createTrajectoryLog(requestId);
+
+  // ========================================================================
+  // Tool Handler Setup
+  // Requirements: 6.1, 6.2, 6.4 - Initialize tool handlers with context
+  // ========================================================================
+  ensureToolHandlersRegistered();
+  setToolHandlerContext({
+    llmConfig: config.llmConfig,
+    searchConfig: config.searchConfig,
+  });
 
   // Working copies of context and memory
   let workingContext = context;

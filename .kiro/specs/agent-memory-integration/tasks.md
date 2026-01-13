@@ -113,25 +113,25 @@ This plan implements the Agent Memory Integration module in phases: first extend
   - Manually test RAG context building
   - Ask user if questions arise
 
-- [ ] 7. Implement Search Enhancement
-  - [ ] 7.1 Create search enhancement module
+- [x] 7. Implement Search Enhancement
+  - [x] 7.1 Create search enhancement module
     - Create `src/lib/agent/search-enhancement.ts`
     - Implement `EnhancedSearchResult` and `Citation` interfaces
     - Implement `retrieveRelatedMemory()` for memory-first retrieval
     - _Requirements: 6.1_
 
-  - [ ] 7.2 Implement synthesis with memory
+  - [x] 7.2 Implement synthesis with memory
     - Implement `synthesizeWithMemory()` combining web + memory results
     - Implement conflict detection with disclaimer (best-effort LLM judgment)
     - Implement `formatCitations()` with clear source labeling
     - _Requirements: 6.2, 6.3, 6.4_
 
-  - [ ] 7.3 Implement enhanced search main function
+  - [x] 7.3 Implement enhanced search main function
     - Implement `enhancedSearch()` orchestrating memory + web search
     - Return combined results with citations
     - _Requirements: 6.1, 6.2, 6.4_
 
-  - [ ] 7.4 Write property tests for Search Enhancement
+  - [x] 7.4 Write property tests for Search Enhancement
     - **Property 12: Dual Source Citation**
     - **Validates: Requirements 6.4**
 

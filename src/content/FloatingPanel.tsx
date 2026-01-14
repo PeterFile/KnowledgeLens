@@ -332,6 +332,7 @@ export function FloatingPanel({
   const [agentTool, setAgentTool] = useState<string | undefined>();
   const [degradedMode, setDegradedMode] = useState(false);
   const [degradedReason, setDegradedReason] = useState<string | undefined>();
+  const pageTitle = document.title || '';
 
   const [position, setPosition] = useState({
     x: Math.max(20, window.innerWidth - 460),
@@ -352,7 +353,12 @@ export function FloatingPanel({
       requestIdRef.current = newRequestId;
       chrome.runtime.sendMessage({
         action: 'summarize_page',
-        payload: { content: context || '', pageUrl: window.location.href, requestId: newRequestId },
+        payload: {
+          content: context || '',
+          pageUrl: window.location.href,
+          pageTitle,
+          requestId: newRequestId,
+        },
         requestId: newRequestId,
       });
       return;
@@ -489,6 +495,7 @@ export function FloatingPanel({
             content={content}
             originalContent={context || ''}
             pageUrl={window.location.href}
+            pageTitle={pageTitle}
             onDeepDiveUpdate={setDeepDiveContent}
           />
         );
@@ -734,6 +741,7 @@ export function FloatingPanel({
                         content={content}
                         originalContent={context || ''}
                         pageUrl={window.location.href}
+                        pageTitle={pageTitle}
                         onDeepDiveUpdate={setDeepDiveContent}
                       />
                     ) : (
@@ -998,11 +1006,13 @@ function HierarchicalSummaryView({
   content,
   originalContent,
   pageUrl,
+  pageTitle,
   onDeepDiveUpdate,
 }: {
   content: string;
   originalContent: string;
   pageUrl: string;
+  pageTitle: string;
   onDeepDiveUpdate: (val: string) => void;
 }) {
   const [showDeepDive, setShowDeepDive] = useState(false);
@@ -1042,6 +1052,7 @@ function HierarchicalSummaryView({
       payload: {
         content: originalContent,
         pageUrl: pageUrl,
+        pageTitle,
         requestId: requestId,
       },
     });
@@ -1078,7 +1089,7 @@ function HierarchicalSummaryView({
     };
 
     chrome.runtime.onMessage.addListener(listener);
-  }, [ddStatus, originalContent, pageUrl, showDeepDive, ddContent, onDeepDiveUpdate]);
+  }, [ddStatus, originalContent, pageUrl, pageTitle, showDeepDive, ddContent, onDeepDiveUpdate]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

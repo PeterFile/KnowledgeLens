@@ -115,13 +115,13 @@ export async function computeEmbeddings(texts: string[]): Promise<number[][]> {
       '*'
     );
 
-    // Timeout after 30 seconds
+    // Timeout after 120 seconds
     setTimeout(() => {
       if (pendingRequests.has(requestId)) {
         pendingRequests.delete(requestId);
         reject(new Error('Compute timeout'));
       }
-    }, 30000);
+    }, 120000);
   });
 }
 

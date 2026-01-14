@@ -8,7 +8,7 @@ import type {
   EpisodicMemory,
   StatusCallback,
   TrajectoryLog,
-  RAGConfig,
+  AgenticRAGConfig,
 } from './types';
 import type { LLMConfig, ChatMessage, SearchConfig } from '../../types';
 import { callLLMWithMessages, callLLMWithImage } from '../api';
@@ -472,7 +472,7 @@ export interface ExplainGoalParams {
   pageUrl?: string;
   useSearch?: boolean;
   searchConfig?: SearchConfig; // Required when useSearch is true
-  ragConfig?: RAGConfig; // Optional RAG configuration
+  ragConfig?: AgenticRAGConfig; // Optional RAG configuration
 }
 
 /**

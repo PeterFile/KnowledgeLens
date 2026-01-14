@@ -51,13 +51,22 @@ export type ExtensionMessage =
   | { action: 'extract_screenshot'; payload: ExtractScreenshotPayload }
   | { action: 'generate_note_card'; payload: NoteCardPayload }
   | { action: 'cancel_request'; payload: CancelRequestPayload }
-  | { action: 'trigger_summary_panel'; payload: { content: string; pageUrl: string } }
+  | {
+      action: 'trigger_summary_panel';
+      payload: { content: string; pageUrl: string; pageTitle?: string };
+    }
   | { action: 'agent_execute'; payload: AgentExecutePayload }
   | { action: 'agent_cancel'; payload: AgentCancelPayload }
   | { action: 'agent_get_status'; payload: AgentGetStatusPayload }
   | { action: 'agent_deep_dive'; payload: DeepDivePayload }
   | { action: 'preload_embedding' }
-  | { action: 'compute_embedding'; payload: EmbeddingPayload };
+  | { action: 'compute_embedding'; payload: EmbeddingPayload }
+  // Memory management messages (popup → background)
+  | { action: 'memory_get_stats' }
+  | { action: 'memory_get_preferences' }
+  | { action: 'memory_sync' }
+  | { action: 'memory_clear' }
+  | { action: 'memory_clear_preferences' };
 
 export interface EmbeddingPayload {
   texts: string[];
@@ -67,12 +76,14 @@ export interface EmbeddingPayload {
 export interface SummarizePayload {
   content: string;
   pageUrl: string;
+  pageTitle?: string;
   requestId?: string;
 }
 
 export interface DeepDivePayload {
   content: string;
   pageUrl: string;
+  pageTitle?: string;
   requestId: string;
 }
 

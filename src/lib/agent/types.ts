@@ -1,7 +1,8 @@
 // Core types for the Agent Architecture
-// Requirements: 1.1, 2.1, 2.2, 7.1
+// Requirements: 1.1, 2.1, 2.2, 2.5, 7.1
 
-import type { LLMConfig, SearchResult } from '../../types';
+import type { LLMConfig, SearchConfig, SearchResult } from '../../types';
+import type { RAGConfig as RAGPipelineConfig } from './rag-context';
 
 // ============================================================================
 // Agent Configuration & Status
@@ -12,9 +13,12 @@ export interface AgentConfig {
   maxRetries: number; // Default: 3
   tokenBudget: number; // User-configurable
   llmConfig: LLMConfig;
+  searchConfig?: SearchConfig; // Search configuration for enhanced search tool
   agentSettings?: {
     language?: 'en' | 'zh' | 'ja';
   };
+  ragConfig?: RAGPipelineConfig; // RAG pipeline configuration
+  enableAutoIndex?: boolean; // Default: true - auto-index pages during analysis
 }
 
 export type AgentPhase =
@@ -225,7 +229,7 @@ export interface GradedResult {
   reasoning: string;
 }
 
-export interface RAGConfig {
+export interface AgenticRAGConfig {
   maxRetries: number; // Default: 2
   relevanceThreshold: number; // Default: 0.5 (50% must be relevant)
 }

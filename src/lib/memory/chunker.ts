@@ -52,6 +52,23 @@ interface TextBlock {
 }
 
 function extractTextBlocks(html: string): TextBlock[] {
+  if (typeof DOMParser === 'undefined') {
+    const text = html
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return text
+      ? [
+          {
+            text,
+            headingPath: [],
+            isCode: false,
+            offset: 0,
+          },
+        ]
+      : [];
+  }
+
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
 
@@ -124,6 +141,19 @@ function extractTextBlocks(html: string): TextBlock[] {
   }
 
   processNode(doc.body);
+
+  // Fallback: if no blocks were found (e.g. plain text input), use full text.
+  if (blocks.length === 0) {
+    const fallbackText = doc.body?.textContent?.trim() || '';
+    if (fallbackText) {
+      blocks.push({
+        text: fallbackText,
+        headingPath: [],
+        isCode: false,
+        offset: 0,
+      });
+    }
+  }
   return blocks;
 }
 
@@ -158,11 +188,11 @@ export function chunkHtmlContent(html: string, options?: ChunkOptions): Chunk[] 
   let pendingHeadingPath: string[] = [];
   let pendingOffset = 0;
 
-  function flushPending(): void {
+  function flushPending(force: boolean = false): void {
     if (!pendingText.trim()) return;
 
     const tokenCount = countTokens(pendingText);
-    if (tokenCount >= opts.minTokens) {
+    if (tokenCount >= opts.minTokens || force) {
       chunks.push({
         content: pendingText.trim(),
         headingPath: pendingHeadingPath,
@@ -225,6 +255,6 @@ export function chunkHtmlContent(html: string, options?: ChunkOptions): Chunk[] 
     }
   }
 
-  flushPending();
+  flushPending(true);
   return chunks;
 }

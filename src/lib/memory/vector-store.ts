@@ -1,8 +1,8 @@
 // Vector store using Orama for hybrid search
-// Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7
+// Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 5.1
 
-import { create, insert, search, remove, count, type Orama } from '@orama/orama';
-import { persist, restore } from '@orama/plugin-data-persistence';
+import { create, insert, search, remove, count, load, save, type Orama } from '@orama/orama';
+import type { DocumentType, PreferenceType } from './types';
 
 export interface Document {
   id: string;
@@ -12,6 +12,8 @@ export interface Document {
   title: string;
   headingPath: string[];
   createdAt: number;
+  docType?: DocumentType;
+  preferenceType?: PreferenceType;
 }
 
 export interface SearchOptions {
@@ -22,6 +24,8 @@ export interface SearchOptions {
     sourceUrl?: string;
     createdAfter?: number;
     createdBefore?: number;
+    docType?: DocumentType;
+    preferenceType?: PreferenceType;
   };
 }
 
@@ -38,17 +42,23 @@ const SCHEMA = {
   title: 'string',
   headingPath: 'string[]',
   createdAt: 'number',
+  docType: 'string',
+  preferenceType: 'string',
 } as const;
 
 type OramaDB = Orama<typeof SCHEMA>;
+
+export type VectorStoreSnapshot = ReturnType<typeof save>;
 
 export interface VectorStore {
   insert(doc: Omit<Document, 'id'>): Promise<string>;
   insertBatch(docs: Omit<Document, 'id'>[]): Promise<string[]>;
   search(query: string, embedding: number[], options?: SearchOptions): Promise<SearchResult[]>;
+  searchByFilter(filters: SearchOptions['filters'], limit?: number): Promise<SearchResult[]>;
   remove(id: string): Promise<boolean>;
+  removeByFilter(filters: SearchOptions['filters']): Promise<number>;
   getDocumentCount(): number;
-  toSnapshot(): Promise<ArrayBuffer>;
+  toSnapshot(): Promise<VectorStoreSnapshot>;
 }
 
 function generateId(): string {
@@ -62,6 +72,14 @@ function buildWhereClause(filters?: SearchOptions['filters']) {
 
   if (filters.sourceUrl) {
     where.sourceUrl = filters.sourceUrl;
+  }
+
+  if (filters.docType) {
+    where.docType = filters.docType;
+  }
+
+  if (filters.preferenceType) {
+    where.preferenceType = filters.preferenceType;
   }
 
   if (filters.createdAfter || filters.createdBefore) {
@@ -82,9 +100,10 @@ export async function createVectorStore(): Promise<VectorStore> {
   return wrapDatabase(db);
 }
 
-export async function restoreFromSnapshot(data: ArrayBuffer): Promise<VectorStore> {
-  const db = await restore('binary', data as unknown as string);
-  return wrapDatabase(db as OramaDB);
+export async function restoreFromSnapshot(data: VectorStoreSnapshot): Promise<VectorStore> {
+  const db: OramaDB = await create({ schema: SCHEMA });
+  load(db, data);
+  return wrapDatabase(db);
 }
 
 function wrapDatabase(db: OramaDB): VectorStore {
@@ -153,13 +172,54 @@ function wrapDatabase(db: OramaDB): VectorStore {
       }
     },
 
+    async searchByFilter(filters, limit = 1000) {
+      const where = buildWhereClause(filters);
+      if (!where) return [];
+
+      // Use fulltext search with empty term to get all matching documents
+      const results = await search(db, {
+        term: '',
+        limit,
+        where,
+      });
+
+      return results.hits.map((hit) => ({
+        document: hit.document as Document,
+        score: hit.score,
+      }));
+    },
+
+    async removeByFilter(filters) {
+      const where = buildWhereClause(filters);
+      if (!where) return 0;
+
+      // First find all matching documents
+      const results = await search(db, {
+        term: '',
+        limit: 10000, // High limit to get all matching docs
+        where,
+      });
+
+      // Remove each document
+      let removedCount = 0;
+      for (const hit of results.hits) {
+        try {
+          await remove(db, hit.id);
+          removedCount++;
+        } catch {
+          // Ignore removal errors for individual documents
+        }
+      }
+
+      return removedCount;
+    },
+
     getDocumentCount() {
       return count(db);
     },
 
-    async toSnapshot(): Promise<ArrayBuffer> {
-      const data = await persist(db, 'binary');
-      return (data as Uint8Array).buffer as ArrayBuffer;
+    async toSnapshot(): Promise<VectorStoreSnapshot> {
+      return save(db);
     },
   };
 }

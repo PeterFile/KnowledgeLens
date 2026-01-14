@@ -125,7 +125,11 @@ export function SummaryView({
       // Send message to content script to trigger the panel
       await chrome.tabs.sendMessage(tab.id, {
         action: 'trigger_summary_panel',
-        payload: { content: response.content, pageUrl: tab.url || '' },
+        payload: {
+          content: response.content,
+          pageUrl: tab.url || '',
+          pageTitle: tab.title || '',
+        },
       });
 
       setState({ status: 'running_on_page', content: '' });

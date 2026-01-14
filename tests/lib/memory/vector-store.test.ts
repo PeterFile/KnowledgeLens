@@ -55,11 +55,15 @@ vi.mock('@orama/orama', () => ({
     return true;
   }),
   count: vi.fn(() => mockDocuments.size),
-}));
-
-vi.mock('@orama/plugin-data-persistence', () => ({
-  persist: vi.fn(async () => new Uint8Array([1, 2, 3, 4])),
-  restore: vi.fn(async () => ({ _mock: true, _restored: true })),
+  load: vi.fn((_db, _raw) => undefined),
+  save: vi.fn(() => ({
+    internalDocumentIDStore: {},
+    index: {},
+    docs: {},
+    sorting: {},
+    pinning: {},
+    language: 'english',
+  })),
 }));
 
 // Generators
@@ -280,8 +284,14 @@ describe('Vector Store', () => {
       await store.insert(doc);
       const snapshot = await store.toSnapshot();
 
-      expect(snapshot).toBeInstanceOf(ArrayBuffer);
-      expect(snapshot.byteLength).toBeGreaterThan(0);
+      expect(snapshot).toMatchObject({
+        internalDocumentIDStore: expect.anything(),
+        index: expect.anything(),
+        docs: expect.anything(),
+        sorting: expect.anything(),
+        pinning: expect.anything(),
+        language: expect.any(String),
+      });
 
       // Restore from snapshot
       const restoredStore = await restoreFromSnapshot(snapshot);
@@ -296,7 +306,14 @@ describe('Vector Store', () => {
           }
 
           const snapshot = await store.toSnapshot();
-          expect(snapshot).toBeInstanceOf(ArrayBuffer);
+          expect(snapshot).toMatchObject({
+            internalDocumentIDStore: expect.anything(),
+            index: expect.anything(),
+            docs: expect.anything(),
+            sorting: expect.anything(),
+            pinning: expect.anything(),
+            language: expect.any(String),
+          });
           return true;
         }),
         { numRuns: 20 }

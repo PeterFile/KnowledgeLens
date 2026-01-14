@@ -1,5 +1,5 @@
 // Memory Manager - unified interface for memory operations
-// Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6
+// Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 3.4, 3.5
 
 import {
   saveSnapshot,
@@ -7,8 +7,15 @@ import {
   deleteOldSnapshots,
   setMetadata,
   getMetadata,
+  clearSnapshots,
+  clearMetadata,
 } from './storage';
-import { createVectorStore, restoreFromSnapshot, type VectorStore } from './vector-store';
+import {
+  createVectorStore,
+  restoreFromSnapshot,
+  type VectorStore,
+  type VectorStoreSnapshot,
+} from './vector-store';
 import { chunkHtmlContent } from './chunker';
 import { computeEmbedding, computeEmbeddings, isReady, preload } from './embedding-client';
 import type { Chunk, SearchOptions, SearchResult, MemoryStats, AddDocumentOptions } from './types';
@@ -20,6 +27,10 @@ interface MemoryManager {
   addDocument(content: string, metadata: AddDocumentOptions): Promise<string[]>;
   addChunks(chunks: Chunk[], metadata: AddDocumentOptions): Promise<string[]>;
   search(query: string, options?: SearchOptions): Promise<SearchResult[]>;
+  removeById(id: string): Promise<boolean>;
+  removeBySourceUrl(sourceUrl: string): Promise<number>;
+  searchBySourceUrl(sourceUrl: string, limit?: number): Promise<SearchResult[]>;
+  clearAll(): Promise<void>;
   sync(): Promise<void>;
   getStats(): MemoryStats;
 }
@@ -29,13 +40,27 @@ let vectorStore: VectorStore | null = null;
 let lastSyncTime: number | null = null;
 let indexSizeBytes = 0;
 
+function estimateSnapshotSize(data: VectorStoreSnapshot | null): number {
+  if (!data) return 0;
+  try {
+    const json = JSON.stringify(data);
+    if (!json) return 0;
+    if (typeof TextEncoder !== 'undefined') {
+      return new TextEncoder().encode(json).byteLength;
+    }
+    return json.length;
+  } catch {
+    return 0;
+  }
+}
+
 async function initialize(): Promise<void> {
   if (vectorStore) return;
 
   const snapshot = await loadLatestSnapshot();
   if (snapshot) {
-    vectorStore = await restoreFromSnapshot(snapshot.data);
-    indexSizeBytes = snapshot.data.byteLength;
+    vectorStore = await restoreFromSnapshot(snapshot.data as VectorStoreSnapshot);
+    indexSizeBytes = estimateSnapshotSize(snapshot.data as VectorStoreSnapshot);
     lastSyncTime = await getMetadata<number>('lastSyncTime');
   } else {
     vectorStore = await createVectorStore();
@@ -70,6 +95,8 @@ export async function getMemoryManager(): Promise<MemoryManager> {
         title: metadata.title,
         headingPath: chunk.headingPath,
         createdAt: Date.now(),
+        docType: metadata.docType ?? 'content',
+        preferenceType: metadata.preferenceType ?? 'custom',
       }));
 
       return vectorStore.insertBatch(docs);
@@ -82,6 +109,32 @@ export async function getMemoryManager(): Promise<MemoryManager> {
       return vectorStore.search(query, embedding, options);
     },
 
+    async removeById(id) {
+      if (!vectorStore) throw new Error('Memory not initialized');
+      return vectorStore.remove(id);
+    },
+
+    async removeBySourceUrl(sourceUrl) {
+      if (!vectorStore) throw new Error('Memory not initialized');
+      return vectorStore.removeByFilter({ sourceUrl });
+    },
+
+    async searchBySourceUrl(sourceUrl, limit = 100) {
+      if (!vectorStore) throw new Error('Memory not initialized');
+      return vectorStore.searchByFilter({ sourceUrl }, limit);
+    },
+
+    async clearAll() {
+      if (!vectorStore) throw new Error('Memory not initialized');
+
+      await clearSnapshots();
+      await clearMetadata();
+
+      vectorStore = await createVectorStore();
+      lastSyncTime = null;
+      indexSizeBytes = 0;
+    },
+
     async sync() {
       if (!vectorStore) return;
 
@@ -92,7 +145,7 @@ export async function getMemoryManager(): Promise<MemoryManager> {
       await deleteOldSnapshots(MAX_SNAPSHOTS);
 
       lastSyncTime = Date.now();
-      indexSizeBytes = snapshot.byteLength;
+      indexSizeBytes = estimateSnapshotSize(snapshot);
       await setMetadata('lastSyncTime', lastSyncTime);
     },
 
@@ -110,5 +163,13 @@ export async function getMemoryManager(): Promise<MemoryManager> {
 }
 
 // Re-export types and utilities
-export type { Chunk, SearchOptions, SearchResult, MemoryStats, AddDocumentOptions } from './types';
+export type {
+  Chunk,
+  SearchOptions,
+  SearchResult,
+  MemoryStats,
+  AddDocumentOptions,
+  DocumentType,
+  PreferenceType,
+} from './types';
 export { chunkHtmlContent } from './chunker';

@@ -26,9 +26,10 @@ describe('Property 1: Content extraction removes unwanted elements', () => {
 
         // Script content should not appear in output
         const hasScriptContent = cleaned.includes(scriptContent);
-        // Visible text should be preserved
+        // Visible text should be preserved (normalize whitespace)
+        const normalizedVisible = visibleText.replace(/\s+/g, ' ').trim();
         const hasVisibleText =
-          visibleText.trim().length === 0 || cleaned.includes(visibleText.trim());
+          normalizedVisible.length === 0 || cleaned.includes(normalizedVisible);
 
         return !hasScriptContent && hasVisibleText;
       }),

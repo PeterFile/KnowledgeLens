@@ -1,5 +1,5 @@
 // Memory types
-// Requirements: 6.1, 6.2, 6.3
+// Requirements: 6.1, 6.2, 6.3, 5.1
 
 export interface Chunk {
   content: string;
@@ -9,6 +9,12 @@ export interface Chunk {
   endOffset: number;
 }
 
+// Document types for filtering
+export type DocumentType = 'content' | 'preference';
+
+// Preference types for user preferences
+export type PreferenceType = 'expertise' | 'style' | 'domain' | 'custom';
+
 export interface MemoryDocument {
   id: string;
   content: string;
@@ -17,6 +23,8 @@ export interface MemoryDocument {
   title: string;
   headingPath: string[];
   createdAt: number;
+  docType?: DocumentType;
+  preferenceType?: PreferenceType;
 }
 
 export interface SearchOptions {
@@ -27,6 +35,8 @@ export interface SearchOptions {
     sourceUrl?: string;
     createdAfter?: number;
     createdBefore?: number;
+    docType?: DocumentType;
+    preferenceType?: PreferenceType;
   };
 }
 
@@ -45,4 +55,6 @@ export interface MemoryStats {
 export interface AddDocumentOptions {
   sourceUrl: string;
   title: string;
+  docType?: DocumentType;
+  preferenceType?: PreferenceType;
 }

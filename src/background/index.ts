@@ -21,26 +21,30 @@ import type {
   StoredSettings,
 } from '../types';
 import { loadSettings } from '../lib/storage';
+import { getMemoryManager } from '../lib/memory';
 import * as requestManager from '../lib/request-manager';
 import { captureAndCropScreenshot, ensureOffscreenDocument } from '../lib/screenshot';
 import type { NoteCardData } from '../lib/notecard';
+import { runAgentLoop, createAgentConfig, getFinalResponse } from '../lib/agent/loop';
+import { createSession, saveState, loadState } from '../lib/agent/state';
+import { createContext } from '../lib/agent/context';
+import { createEpisodicMemory } from '../lib/agent/reflection';
 import {
-  runAgentLoop,
-  createAgentConfig,
-  getFinalResponse,
-  createSession,
-  saveState,
-  loadState,
-  createContext,
-  createEpisodicMemory,
-  DEFAULT_AGENT_CONFIG,
   handleSummarizeGoal,
   handleExplainGoal,
   handleScreenshotGoal,
   handleNoteCardGoal,
   handleDeepDiveGoal,
-} from '../lib/agent';
-import type { AgentState, AgentStatus } from '../lib/agent';
+} from '../lib/agent/goal-handlers';
+import { indexPage } from '../lib/agent/auto-indexer';
+import { getPreferenceStore } from '../lib/agent/preference-store';
+import type { AgentState, AgentStatus } from '../lib/agent/types';
+
+const DEFAULT_AGENT_CONFIG = {
+  maxSteps: 5,
+  maxRetries: 3,
+  tokenBudget: 100000,
+} as const;
 
 console.log('KnowledgeLens background service worker loaded');
 
@@ -48,6 +52,12 @@ console.log('KnowledgeLens background service worker loaded');
 // Settings Cache - Avoids repeated chrome.storage.local reads
 // ============================================================================
 let cachedSettings: StoredSettings | null = null;
+
+type MemoryManager = Awaited<ReturnType<typeof getMemoryManager>>;
+
+async function getMemoryManagerSafe(): Promise<MemoryManager> {
+  return getMemoryManager();
+}
 
 // ============================================================================
 // Agent State Management
@@ -243,6 +253,15 @@ async function handleSummarize(
       },
       tabId
     );
+
+    // Keep the service worker alive long enough to index content
+    if (payload.content && payload.pageUrl) {
+      try {
+        await indexPage(payload.content, payload.pageUrl, payload.pageTitle || '');
+      } catch (error) {
+        console.error('[AutoIndexer] Failed during summarize indexing:', error);
+      }
+    }
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       return;
@@ -329,6 +348,15 @@ async function handleDeepDive(
       },
       tabId
     );
+
+    // Keep the service worker alive long enough to index content
+    if (payload.content && payload.pageUrl) {
+      try {
+        await indexPage(payload.content, payload.pageUrl, payload.pageTitle || '');
+      } catch (error) {
+        console.error('[AutoIndexer] Failed during deep dive indexing:', error);
+      }
+    }
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       return;
@@ -1335,6 +1363,91 @@ async function handleComputeEmbedding(
 }
 
 // ============================================================================
+// Memory Management Handlers
+// Requirements: 7.1, 7.2, 7.3, 7.4, 5.6
+// ============================================================================
+
+async function handleMemoryGetStats(
+  sendResponse: (response: ExtensionResponse) => void
+): Promise<void> {
+  try {
+    const memoryManager = await getMemoryManagerSafe();
+    const stats = memoryManager.getStats();
+    sendResponse({ success: true, data: stats, requestId: '' });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get memory stats',
+      requestId: '',
+    });
+  }
+}
+
+async function handleMemoryGetPreferences(
+  sendResponse: (response: ExtensionResponse) => void
+): Promise<void> {
+  try {
+    const preferenceStore = getPreferenceStore();
+    const preferences = await preferenceStore.getAll();
+    sendResponse({ success: true, data: preferences, requestId: '' });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get preferences',
+      requestId: '',
+    });
+  }
+}
+
+async function handleMemorySync(
+  sendResponse: (response: ExtensionResponse) => void
+): Promise<void> {
+  try {
+    const memoryManager = await getMemoryManagerSafe();
+    await memoryManager.sync();
+    sendResponse({ success: true, data: { synced: true }, requestId: '' });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to sync memory',
+      requestId: '',
+    });
+  }
+}
+
+async function handleMemoryClear(
+  sendResponse: (response: ExtensionResponse) => void
+): Promise<void> {
+  try {
+    const memoryManager = await getMemoryManagerSafe();
+    await memoryManager.clearAll();
+    sendResponse({ success: true, data: { cleared: true }, requestId: '' });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to clear memory',
+      requestId: '',
+    });
+  }
+}
+
+async function handleMemoryClearPreferences(
+  sendResponse: (response: ExtensionResponse) => void
+): Promise<void> {
+  try {
+    const preferenceStore = getPreferenceStore();
+    await preferenceStore.clear();
+    sendResponse({ success: true, data: { cleared: true }, requestId: '' });
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to clear preferences',
+      requestId: '',
+    });
+  }
+}
+
+// ============================================================================
 // Keyboard Shortcut Handler
 // Requirements: 5.1 - Ctrl+Shift+X triggers screenshot overlay
 // ============================================================================
@@ -1482,6 +1595,27 @@ chrome.runtime.onMessage.addListener(
 
       case 'compute_embedding':
         handleComputeEmbedding(message.payload, sendResponse);
+        return true;
+
+      // Memory management messages
+      case 'memory_get_stats':
+        handleMemoryGetStats(sendResponse);
+        return true;
+
+      case 'memory_get_preferences':
+        handleMemoryGetPreferences(sendResponse);
+        return true;
+
+      case 'memory_sync':
+        handleMemorySync(sendResponse);
+        return true;
+
+      case 'memory_clear':
+        handleMemoryClear(sendResponse);
+        return true;
+
+      case 'memory_clear_preferences':
+        handleMemoryClearPreferences(sendResponse);
         return true;
 
       default: {

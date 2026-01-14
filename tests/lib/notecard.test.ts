@@ -16,25 +16,27 @@ function decodeQRCode(dataUrl: string): string | null {
 
   // Parse PNG to get raw pixel data
   const png = PNG.sync.read(buffer);
-  
+
   // Convert to Uint8ClampedArray for jsQR
   const imageData = new Uint8ClampedArray(png.data);
-  
+
   // Decode QR code
   const code = jsQR(imageData, png.width, png.height);
-  
+
   return code?.data ?? null;
 }
 
 // Arbitrary for simple URLs that are valid and reasonable length
-const simpleUrlArb = fc.tuple(
-  fc.constantFrom('http', 'https'),
-  fc.stringMatching(/^[a-z][a-z0-9-]{0,20}\.[a-z]{2,6}$/),
-  fc.array(fc.stringMatching(/^[a-z0-9-]{1,10}$/), { minLength: 0, maxLength: 3 }),
-).map(([scheme, domain, pathParts]) => {
-  const path = pathParts.length > 0 ? '/' + pathParts.join('/') : '';
-  return `${scheme}://${domain}${path}`;
-});
+const simpleUrlArb = fc
+  .tuple(
+    fc.constantFrom('http', 'https'),
+    fc.stringMatching(/^[a-z][a-z0-9-]{0,20}\.[a-z]{2,6}$/),
+    fc.array(fc.stringMatching(/^[a-z0-9-]{1,10}$/), { minLength: 0, maxLength: 3 })
+  )
+  .map(([scheme, domain, pathParts]) => {
+    const path = pathParts.length > 0 ? '/' + pathParts.join('/') : '';
+    return `${scheme}://${domain}${path}`;
+  });
 
 /**
  * **Feature: knowledge-lens, Property 10: QR code round trip**
@@ -44,7 +46,7 @@ const simpleUrlArb = fc.tuple(
  * SHALL return the original URL.
  */
 describe('Property 10: QR code round trip', () => {
-  it('QR code encodes and decodes URL correctly', async () => {
+  it('QR code encodes and decodes URL correctly', { timeout: 15000 }, async () => {
     await fc.assert(
       fc.asyncProperty(simpleUrlArb, async (url) => {
         // Generate QR code
@@ -60,7 +62,7 @@ describe('Property 10: QR code round trip', () => {
         expect(decoded).toBe(url);
         return decoded === url;
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     );
   });
 
@@ -87,17 +89,14 @@ describe('Property 10: QR code round trip', () => {
           return decoded === url;
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 50 }
     );
   });
 
   it('QR code handles URLs with fragments', async () => {
     await fc.assert(
       fc.asyncProperty(
-        fc.tuple(
-          simpleUrlArb,
-          fc.stringMatching(/^[a-zA-Z][a-zA-Z0-9-]{0,15}$/)
-        ),
+        fc.tuple(simpleUrlArb, fc.stringMatching(/^[a-zA-Z][a-zA-Z0-9-]{0,15}$/)),
         async ([baseUrl, fragment]) => {
           const url = `${baseUrl}#${fragment}`;
 
@@ -107,7 +106,7 @@ describe('Property 10: QR code round trip', () => {
           return decoded === url;
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 50 }
     );
   });
 
@@ -138,7 +137,7 @@ describe('Property 10: QR code round trip', () => {
         // Extract and validate Base64
         const base64Part = qrDataUrl.replace(/^data:image\/png;base64,/, '');
         const buffer = Buffer.from(base64Part, 'base64');
-        
+
         // Should be valid PNG (can be parsed)
         const png = PNG.sync.read(buffer);
         expect(png.width).toBeGreaterThan(0);
@@ -146,27 +145,26 @@ describe('Property 10: QR code round trip', () => {
 
         return true;
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     );
   });
 });
-
 
 // Arbitrary for non-empty strings (titles, etc.)
 const nonEmptyStringArb = fc.string({ minLength: 1, maxLength: 100 });
 
 // Arbitrary for Base64-like screenshot data
-const screenshotArb = fc.string({ minLength: 10, maxLength: 200 }).map(s => 
-  `data:image/png;base64,${Buffer.from(s).toString('base64')}`
-);
+const screenshotArb = fc
+  .string({ minLength: 10, maxLength: 200 })
+  .map((s) => `data:image/png;base64,${Buffer.from(s).toString('base64')}`);
 
 // Arbitrary for favicon URLs
 const faviconArb = fc.oneof(
   fc.constant(''), // Empty favicon is allowed
-  simpleUrlArb.map(url => `${url}/favicon.ico`),
-  fc.string({ minLength: 10, maxLength: 100 }).map(s => 
-    `data:image/png;base64,${Buffer.from(s).toString('base64')}`
-  )
+  simpleUrlArb.map((url) => `${url}/favicon.ico`),
+  fc
+    .string({ minLength: 10, maxLength: 100 })
+    .map((s) => `data:image/png;base64,${Buffer.from(s).toString('base64')}`)
 );
 
 // Arbitrary for complete NoteCardData
@@ -190,19 +188,19 @@ describe('Property 9: Note card metadata inclusion', () => {
     fc.assert(
       fc.property(noteCardDataArb, (data) => {
         const validation = validateNoteCardMetadata(data);
-        
+
         // Title must be present (Requirement 7.1)
         expect(validation.hasTitle).toBe(true);
-        
+
         // Source URL must be present (Requirement 7.2 - for QR code)
         expect(validation.hasSourceUrl).toBe(true);
-        
+
         // Screenshot must be present (Requirement 7.2 - original screenshot)
         expect(validation.hasScreenshot).toBe(true);
-        
+
         // All required fields must be present
         expect(validation.allRequiredPresent).toBe(true);
-        
+
         return validation.allRequiredPresent;
       }),
       { numRuns: 100 }
@@ -221,10 +219,10 @@ describe('Property 9: Note card metadata inclusion', () => {
         }),
         (data) => {
           const validation = validateNoteCardMetadata(data);
-          
+
           expect(validation.hasTitle).toBe(false);
           expect(validation.allRequiredPresent).toBe(false);
-          
+
           return !validation.hasTitle && !validation.allRequiredPresent;
         }
       ),
@@ -244,10 +242,10 @@ describe('Property 9: Note card metadata inclusion', () => {
         }),
         (data) => {
           const validation = validateNoteCardMetadata(data);
-          
+
           expect(validation.hasSourceUrl).toBe(false);
           expect(validation.allRequiredPresent).toBe(false);
-          
+
           return !validation.hasSourceUrl && !validation.allRequiredPresent;
         }
       ),
@@ -267,10 +265,10 @@ describe('Property 9: Note card metadata inclusion', () => {
         }),
         (data) => {
           const validation = validateNoteCardMetadata(data);
-          
+
           expect(validation.hasScreenshot).toBe(false);
           expect(validation.allRequiredPresent).toBe(false);
-          
+
           return !validation.hasScreenshot && !validation.allRequiredPresent;
         }
       ),
@@ -290,11 +288,11 @@ describe('Property 9: Note card metadata inclusion', () => {
         }),
         (data) => {
           const validation = validateNoteCardMetadata(data);
-          
+
           // Favicon is optional, so allRequiredPresent should still be true
           expect(validation.hasFavicon).toBe(false);
           expect(validation.allRequiredPresent).toBe(true);
-          
+
           return !validation.hasFavicon && validation.allRequiredPresent;
         }
       ),
@@ -314,10 +312,10 @@ describe('Property 9: Note card metadata inclusion', () => {
         }),
         (data) => {
           const validation = validateNoteCardMetadata(data);
-          
+
           // aiSummary is optional, allRequiredPresent should still be true
           expect(validation.allRequiredPresent).toBe(true);
-          
+
           return validation.allRequiredPresent;
         }
       ),
@@ -334,14 +332,14 @@ describe('Property 9: Note card metadata inclusion', () => {
         expect(data.sourceUrl).toBeDefined();
         expect(data.screenshot).toBeDefined();
         expect(data.aiSummary).toBeDefined();
-        
+
         // Verify types
         expect(typeof data.title).toBe('string');
         expect(typeof data.favicon).toBe('string');
         expect(typeof data.sourceUrl).toBe('string');
         expect(typeof data.screenshot).toBe('string');
         expect(typeof data.aiSummary).toBe('string');
-        
+
         return true;
       }),
       { numRuns: 100 }

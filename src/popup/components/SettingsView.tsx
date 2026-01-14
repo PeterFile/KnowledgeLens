@@ -5,6 +5,7 @@ import { ModelConfig } from './settings/ModelConfig';
 import { SearchConfig } from './settings/SearchConfig';
 import { AgentConfig } from './settings/AgentConfig';
 import { GeneralConfig } from './settings/GeneralConfig';
+import { MemoryConfig } from './settings/MemoryConfig';
 import { t } from '../../lib/i18n';
 import {
   MODEL_OPTIONS,
@@ -184,6 +185,8 @@ export function SettingsView({ settings, setSettings }: SettingsViewProps) {
         language={localState.language}
         onLanguageChange={(val) => updateState({ language: val })}
       />
+
+      <MemoryConfig language={localState.language} />
 
       {/* Floating Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-black flex gap-3 z-20">

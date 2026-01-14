@@ -188,11 +188,11 @@ export function chunkHtmlContent(html: string, options?: ChunkOptions): Chunk[] 
   let pendingHeadingPath: string[] = [];
   let pendingOffset = 0;
 
-  function flushPending(): void {
+  function flushPending(force: boolean = false): void {
     if (!pendingText.trim()) return;
 
     const tokenCount = countTokens(pendingText);
-    if (tokenCount >= opts.minTokens) {
+    if (tokenCount >= opts.minTokens || force) {
       chunks.push({
         content: pendingText.trim(),
         headingPath: pendingHeadingPath,
@@ -255,6 +255,6 @@ export function chunkHtmlContent(html: string, options?: ChunkOptions): Chunk[] 
     }
   }
 
-  flushPending();
+  flushPending(true);
   return chunks;
 }

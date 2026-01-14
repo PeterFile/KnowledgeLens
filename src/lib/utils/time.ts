@@ -16,11 +16,11 @@ export function formatRelativeTime(
   }
 
   const diffMs = now - timestamp;
-  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'always' });
 
   // Handle future timestamps or very recent (within 1 second)
   if (diffMs < 1000) {
-    return rtf.format(0, 'second');
+    return 'just now';
   }
 
   const seconds = Math.floor(diffMs / 1000);

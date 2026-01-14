@@ -51,7 +51,10 @@ export type ExtensionMessage =
   | { action: 'extract_screenshot'; payload: ExtractScreenshotPayload }
   | { action: 'generate_note_card'; payload: NoteCardPayload }
   | { action: 'cancel_request'; payload: CancelRequestPayload }
-  | { action: 'trigger_summary_panel'; payload: { content: string; pageUrl: string } }
+  | {
+      action: 'trigger_summary_panel';
+      payload: { content: string; pageUrl: string; pageTitle?: string };
+    }
   | { action: 'agent_execute'; payload: AgentExecutePayload }
   | { action: 'agent_cancel'; payload: AgentCancelPayload }
   | { action: 'agent_get_status'; payload: AgentGetStatusPayload }
@@ -73,12 +76,14 @@ export interface EmbeddingPayload {
 export interface SummarizePayload {
   content: string;
   pageUrl: string;
+  pageTitle?: string;
   requestId?: string;
 }
 
 export interface DeepDivePayload {
   content: string;
   pageUrl: string;
+  pageTitle?: string;
   requestId: string;
 }
 

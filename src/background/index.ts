@@ -36,6 +36,7 @@ import {
   handleNoteCardGoal,
   handleDeepDiveGoal,
 } from '../lib/agent/goal-handlers';
+import { indexPage } from '../lib/agent/auto-indexer';
 import { getPreferenceStore } from '../lib/agent/preference-store';
 import type { AgentState, AgentStatus } from '../lib/agent/types';
 
@@ -252,6 +253,15 @@ async function handleSummarize(
       },
       tabId
     );
+
+    // Keep the service worker alive long enough to index content
+    if (payload.content && payload.pageUrl) {
+      try {
+        await indexPage(payload.content, payload.pageUrl, payload.pageTitle || '');
+      } catch (error) {
+        console.error('[AutoIndexer] Failed during summarize indexing:', error);
+      }
+    }
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       return;
@@ -338,6 +348,15 @@ async function handleDeepDive(
       },
       tabId
     );
+
+    // Keep the service worker alive long enough to index content
+    if (payload.content && payload.pageUrl) {
+      try {
+        await indexPage(payload.content, payload.pageUrl, payload.pageTitle || '');
+      } catch (error) {
+        console.error('[AutoIndexer] Failed during deep dive indexing:', error);
+      }
+    }
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       return;

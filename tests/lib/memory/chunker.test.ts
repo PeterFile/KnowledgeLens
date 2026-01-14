@@ -240,5 +240,24 @@ describe('HTML Chunker', () => {
       const chunks = chunkHtmlContent(html);
       expect(chunks.length).toBeGreaterThanOrEqual(0);
     });
+
+    it('handles plain text input by creating chunks', () => {
+      const text = 'word '.repeat(200);
+      const chunks = chunkHtmlContent(text);
+      expect(chunks.length).toBeGreaterThan(0);
+      expect(chunks[0].content).toContain('word');
+    });
+
+    it('falls back when DOMParser is unavailable', () => {
+      const original = (globalThis as any).DOMParser;
+      (globalThis as any).DOMParser = undefined;
+      try {
+        const chunks = chunkHtmlContent('<p>hello world</p>');
+        expect(chunks.length).toBeGreaterThan(0);
+        expect(chunks[0].content).toContain('hello world');
+      } finally {
+        (globalThis as any).DOMParser = original;
+      }
+    });
   });
 });
